@@ -1,14 +1,17 @@
 {
   "name": "deep-thinker",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Advanced cognitive thinking MCP with DAG-based thought graph, multiple strategies, metacognition, and self-evaluation",
   "type": "module",
   "bin": {
     "deep-thinker": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE"
   ],
+  "homepage": "https://github.com/hubinoretros/deep-thinker#readme",
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "npm run build",
