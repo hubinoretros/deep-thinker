@@ -1,6 +1,6 @@
 {
   "name": "deep-thinker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Advanced cognitive thinking MCP with DAG-based thought graph, multiple strategies, metacognition, and self-evaluation",
   "type": "module",
   "bin": {
@@ -29,7 +29,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "git+https://github.com/hubinoretros/deep-thinker.git"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1"
