@@ -1,5 +1,11 @@
 # deep-thinker
 
+[![CI](https://github.com/hubinoretros/deep-thinker/actions/workflows/ci.yml/badge.svg)](https://github.com/hubinoretros/deep-thinker/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/deep-thinker.svg)](https://www.npmjs.com/package/deep-thinker)
+[![npm downloads](https://img.shields.io/npm/dt/deep-thinker.svg)](https://www.npmjs.com/package/deep-thinker)
+[![license](https://img.shields.io/github/license/hubinoretros/deep-thinker.svg)](https://github.com/hubinoretros/deep-thinker/blob/master/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/hubinoretros/deep-thinker.svg)](https://github.com/hubinoretros/deep-thinker/stargazers)
+
 Advanced cognitive thinking MCP server with DAG-based thought graph, multiple reasoning strategies, metacognition, and self-evaluation.
 
 A significant evolution beyond sequential-thinking MCP, providing structured deep reasoning with graph-based thought management.
@@ -281,6 +287,19 @@ npm install
 npm run build
 npm start
 ```
+
+## Testing
+
+```bash
+npm run build
+node dist/test.js
+```
+
+118 tests covering all modules: Node, Graph, Strategies, Scorer, Metacog, Knowledge, Pruner, Integration, Edge Cases.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines. PRs welcome — especially new reasoning strategies and MCP tool ideas.
 
 ## License
 
