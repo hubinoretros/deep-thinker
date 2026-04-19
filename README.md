@@ -10,6 +10,33 @@ Advanced cognitive thinking MCP server with DAG-based thought graph, multiple re
 
 A significant evolution beyond sequential-thinking MCP, providing structured deep reasoning with graph-based thought management.
 
+## Quick Start
+
+```bash
+npx deep-thinker
+```
+
+```json
+{
+  "mcpServers": {
+    "deep-thinker": {
+      "command": "npx",
+      "args": ["-y", "deep-thinker"]
+    }
+  }
+}
+```
+
+## Examples
+
+| Example | Strategy | Use Case |
+|---------|----------|----------|
+| [Architecture Decision](examples/architecture-decision.md) | Dialectic + Parallel | Monolith vs microservices |
+| [Debugging Incident](examples/debugging-incident.md) | Abductive | Production 500 errors |
+| [Feature Prioritization](examples/feature-prioritization.md) | Parallel + Dialectic | Q3 roadmap planning |
+| [Scientific Hypothesis](examples/scientific-hypothesis.md) | Analogical + Abductive | LNP delivery for CRISPR |
+| [Breaking Dead Ends](examples/breaking-dead-end.md) | Metacognitive switch | Serverless cost analysis |
+
 ## Features
 
 - **DAG-Based Thought Graph** — Thoughts form a directed acyclic graph with branching, merging, and cross-edges (not just a linear chain)
@@ -296,6 +323,11 @@ node dist/test.js
 ```
 
 118 tests covering all modules: Node, Graph, Strategies, Scorer, Metacog, Knowledge, Pruner, Integration, Edge Cases.
+
+## Documentation
+
+- [Architecture Deep Dive](docs/architecture.md) — how the DAG, scoring, metacog, and pruning work internally
+- [Strategy Selection Guide](docs/strategy-guide.md) — when to use each strategy and how to combine them
 
 ## Contributing
 
