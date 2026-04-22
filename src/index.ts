@@ -51,6 +51,16 @@ import {
   EDGE_TYPE_DESCRIPTIONS,
 } from "./core/types.js";
 
+// Enhanced capabilities
+import { visualizeAsSVG, visualizeAsASCII } from "./enhancements/visualization.js";
+import { generateCounterarguments, applyCounterarguments } from "./enhancements/devils_advocate.js";
+import { generateCrossDomainAnalogies, applyAnalogiesToGraph } from "./enhancements/cross_disciplinary.js";
+import { projectThoughtTemporally, applyTemporalProjection } from "./enhancements/temporal_projection.js";
+import { evaluateEthically, applyEthicalEvaluation } from "./enhancements/ethical_evaluation.js";
+import { analyzeEmotionalIntelligence } from "./enhancements/emotional_intelligence.js";
+import { explainDecision, formatExplanation } from "./enhancements/explanation.js";
+import { analyzeSocialImpact } from "./enhancements/social_impact.js";
+
 const graph = new ThoughtGraph();
 let metaState = createMetacognitiveState("sequential");
 let problemStatement: string | null = null;
@@ -296,6 +306,194 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         },
       },
     },
+    {
+      name: "visualize_thought_graph",
+      description:
+        "Generate visual representation of the thought graph as SVG or ASCII. Supports highlighting paths, branches, and confidence levels.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          format: {
+            type: "string",
+            enum: ["svg", "ascii", "tree"],
+            description: "Output format (default: ascii)",
+          },
+          highlightPath: {
+            type: "string",
+            description: "Optional: highlight path between two node IDs (format: 'fromId-toId')",
+          },
+          showConfidence: {
+            type: "boolean",
+            description: "Show confidence scores (default: true)",
+          },
+        },
+      },
+    },
+    {
+      name: "simulate_devils_advocate",
+      description:
+        "Generate counterarguments and opposing viewpoints for a given thought. Automatically creates antithesis nodes.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          nodeId: {
+            type: "string",
+            description: "Target node ID to challenge",
+          },
+          depth: {
+            type: "number",
+            minimum: 1,
+            maximum: 5,
+            description: "How many levels of counterarguments to generate (default: 2)",
+          },
+          intensity: {
+            type: "string",
+            enum: ["mild", "moderate", "aggressive"],
+            description: "How strongly to oppose the original thought",
+          },
+        },
+        required: ["nodeId"],
+      },
+    },
+    {
+      name: "cross_disciplinary_synthesis",
+      description:
+        "Combine insights from multiple domains to generate novel perspectives. Creates analogical mappings between domains.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          sourceDomains: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of domains to draw analogies from (e.g., ['biology', 'economics', 'art'])",
+          },
+          targetProblem: {
+            type: "string",
+            description: "The problem to apply cross-domain insights to",
+          },
+          maxAnalogies: {
+            type: "number",
+            minimum: 1,
+            maximum: 10,
+            description: "Maximum number of analogies to generate (default: 3)",
+          },
+        },
+        required: ["sourceDomains", "targetProblem"],
+      },
+    },
+    {
+      name: "temporal_projection",
+      description:
+        "Project thoughts into future or past scenarios. Analyze how conclusions change over time.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          nodeId: {
+            type: "string",
+            description: "Root node ID to project from",
+          },
+          years: {
+            type: "number",
+            description: "Number of years forward (positive) or backward (negative) to project",
+          },
+          scenario: {
+            type: "string",
+            enum: ["optimistic", "pessimistic", "realistic", "disruptive"],
+            description: "Scenario type (default: realistic)",
+          },
+        },
+        required: ["nodeId", "years"],
+      },
+    },
+    {
+      name: "ethical_framework_evaluation",
+      description:
+        "Evaluate a thought or decision through multiple ethical frameworks (deontological, consequentialist, virtue ethics, rights-based).",
+      inputSchema: {
+        type: "object",
+        properties: {
+          nodeId: {
+            type: "string",
+            description: "Node ID to evaluate ethically",
+          },
+          frameworks: {
+            type: "array",
+            items: { type: "string", enum: ["deontological", "consequentialist", "virtue", "rights_based"] },
+            description: "Which frameworks to apply (default: all)",
+          },
+        },
+        required: ["nodeId"],
+      },
+    },
+    {
+      name: "emotional_intelligence_analysis",
+      description:
+        "Analyze emotional tone, stakeholder emotions, and social dynamics of thoughts. Provides empathy and persuasion insights.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "Text to analyze for emotional content",
+          },
+          context: {
+            type: "string",
+            description: "Optional context (e.g., 'team meeting', 'customer feedback', 'crisis situation')",
+          },
+          perspectiveTaking: {
+            type: "number",
+            minimum: 0,
+            maximum: 1,
+            description: "Level of perspective-taking to apply (0=none, 1=full) (default: 0.7)",
+          },
+        },
+        required: ["text"],
+      },
+    },
+    {
+      name: "explain_decision",
+      description:
+        "Generate human-understandable explanation of a decision path. Shows which factors contributed most and why.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          nodeId: {
+            type: "string",
+            description: "Decision/conclusion node ID to explain",
+          },
+          detailLevel: {
+            type: "string",
+            enum: ["simple", "detailed", "technical"],
+            description: "Explanation depth (default: detailed)",
+          },
+          includeCounterfactuals: {
+            type: "boolean",
+            description: "Show what would change if key factors were different (default: true)",
+          },
+        },
+        required: ["nodeId"],
+      },
+    },
+    {
+      name: "social_impact_analysis",
+      description:
+        "Analyze social impact, stakeholder emotions, group cohesion, and persuasion effectiveness of a thought or decision.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          nodeId: {
+            type: "string",
+            description: "Node ID to analyze for social impact",
+          },
+          stakeholders: {
+            type: "array",
+            items: { type: "string" },
+            description: "List of stakeholder groups (e.g., ['customers', 'employees', 'investors', 'community'])",
+          },
+        },
+        required: ["nodeId"],
+      },
+    },
   ],
 }));
 
@@ -317,8 +515,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return handlePrune(args);
       case "reset":
         return handleReset(args);
+      case "visualize_thought_graph":
+        return handleVisualizeThoughtGraph(args);
+      case "simulate_devils_advocate":
+        return handleSimulateDevilsAdvocate(args);
+      case "cross_disciplinary_synthesis":
+        return handleCrossDisciplinarySynthesis(args);
+      case "temporal_projection":
+        return handleTemporalProjection(args);
+      case "ethical_framework_evaluation":
+        return handleEthicalFrameworkEvaluation(args);
+      case "emotional_intelligence_analysis":
+        return handleEmotionalIntelligenceAnalysis(args);
+      case "explain_decision":
+        return handleExplainDecision(args);
+      case "social_impact_analysis":
+        return handleSocialImpactAnalysis(args);
       default:
-        return { content: [{ type: "text", text: `Unknown tool: ${name}` }], isError: true };
+        return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
   } catch (error) {
     return {
@@ -763,6 +977,398 @@ function handleReset(args: Record<string, unknown>) {
     lines.push(`New problem: ${problemStatement}`);
   }
   return { content: [{ type: "text", text: lines.join("\n") }] };
+}
+
+function handleVisualizeThoughtGraph(args: Record<string, unknown>) {
+  const format = (args.format as string) || "ascii";
+  const highlightPath = args.highlightPath as string | undefined;
+  const showConfidence = (args.showConfidence as boolean) ?? true;
+
+  try {
+    let output: string;
+    if (format === "svg") {
+      output = visualizeAsSVG(graph, {
+        showConfidence,
+      });
+    } else {
+      output = visualizeAsASCII(graph);
+    }
+
+    return {
+      content: [{
+        type: "text",
+        text: output,
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Visualization error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+function handleSimulateDevilsAdvocate(args: Record<string, unknown>) {
+  const nodeId = args.nodeId as string;
+  const depth = (args.depth as number) || 2;
+  const intensity = (args.intensity as string) || "moderate";
+
+  if (!nodeId) {
+    return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  try {
+    const counterarguments = generateCounterarguments(graph, nodeId, {
+      depth,
+      intensity: intensity as any,
+    });
+
+    const createdNodes = applyCounterarguments(graph, counterarguments);
+
+    const lines: string[] = [
+      `Devil's Advocate Simulation for node ${nodeId}`,
+      `Generated ${counterarguments.length} counterarguments with intensity: ${intensity}`,
+      "",
+      "Counterarguments added:",
+      ...createdNodes.map(n => `  • [${n.id}] ${n.content.substring(0, 60)}...`),
+      "",
+      `Total graph nodes: ${graph.getStats().totalNodes}`,
+    ];
+
+    metaState = updateMetacognition(metaState, graph);
+
+    return {
+      content: [{
+        type: "text",
+        text: lines.join("\n"),
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Devil's advocate error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+function handleCrossDisciplinarySynthesis(args: Record<string, unknown>) {
+  const sourceDomains = args.sourceDomains as string[];
+  const targetProblem = args.targetProblem as string;
+  const maxAnalogies = (args.maxAnalogies as number) || 3;
+
+  if (!sourceDomains || !targetProblem) {
+    return { content: [{ type: "text", text: "Must specify sourceDomains and targetProblem" }], isError: true };
+  }
+
+  try {
+    const analogies = generateCrossDomainAnalogies(sourceDomains, targetProblem, maxAnalogies);
+    const createdNodes = applyAnalogiesToGraph(graph, analogies);
+
+    const lines: string[] = [
+      `Cross-Disciplinary Synthesis for: "${targetProblem}"`,
+      `Source domains: ${sourceDomains.join(", ")}`,
+      "",
+      "Generated analogies:",
+      ...analogies.map((a, i) => `  ${i + 1}. From ${a.sourceDomain}: ${a.insight.substring(0, 80)}...`),
+      "",
+      `Created ${createdNodes.length} new insight nodes.`,
+    ];
+
+    metaState = updateMetacognition(metaState, graph);
+
+    return {
+      content: [{
+        type: "text",
+        text: lines.join("\n"),
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Cross-disciplinary synthesis error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+function handleTemporalProjection(args: Record<string, unknown>) {
+  const nodeId = args.nodeId as string;
+  const years = args.years as number;
+  const scenario = (args.scenario as string) || "realistic";
+
+  if (!nodeId || years === undefined) {
+    return { content: [{ type: "text", text: "Must specify nodeId and years" }], isError: true };
+  }
+
+  try {
+    const projection = projectThoughtTemporally(graph, nodeId, years, scenario);
+    const newNode = applyTemporalProjection(graph, projection);
+
+    const lines: string[] = [
+      `Temporal Projection of node ${nodeId}`,
+      `Timeframe: ${years > 0 ? `${years} years forward` : `${-years} years backward`}`,
+      `Scenario: ${scenario}`,
+      "",
+      `Projected content: ${projection.projectedContent.substring(0, 100)}...`,
+      `Confidence: ${(projection.confidence * 100).toFixed(0)}% (original: ${(graph.getNode(nodeId)?.confidence || 0) * 100}%)`,
+      `Change factors: ${projection.changeFactors.join(", ")}`,
+      "",
+      `New node created: ${newNode.id}`,
+    ];
+
+    metaState = updateMetacognition(metaState, graph);
+
+    return {
+      content: [{
+        type: "text",
+        text: lines.join("\n"),
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Temporal projection error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+function handleEthicalFrameworkEvaluation(args: Record<string, unknown>) {
+  const nodeId = args.nodeId as string;
+  const frameworks = (args.frameworks as string[]) || ["deontological", "consequentialist", "virtue", "rights_based"];
+
+  if (!nodeId) {
+    return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  try {
+    const evaluations = evaluateEthically(graph, nodeId, frameworks);
+    const node = graph.getNode(nodeId);
+    if (node) {
+      applyEthicalEvaluation(node, evaluations);
+    }
+
+    const lines: string[] = [
+      `Ethical Evaluation of node ${nodeId}`,
+      `Frameworks applied: ${frameworks.join(", ")}`,
+      "",
+    ];
+
+    evaluations.forEach(evalItem => {
+      lines.push(`• ${evalItem.framework.toUpperCase()}: ${(evalItem.alignmentScore * 100).toFixed(0)}% alignment`);
+      lines.push(`  Assessment: ${evalItem.assessment.substring(0, 80)}...`);
+      if (evalItem.concerns.length > 0) {
+        lines.push(`  Concerns: ${evalItem.concerns.join(", ")}`);
+      }
+      lines.push("");
+    });
+
+    metaState = updateMetacognition(metaState, graph);
+
+    return {
+      content: [{
+        type: "text",
+        text: lines.join("\n"),
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Ethical evaluation error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+function handleEmotionalIntelligenceAnalysis(args: Record<string, unknown>) {
+  const text = args.text as string;
+  const context = args.context as string | undefined;
+  const perspectiveTaking = (args.perspectiveTaking as number) ?? 0.7;
+
+  if (!text) {
+    return { content: [{ type: "text", text: "Must specify text" }], isError: true };
+  }
+
+  try {
+    const analysis = analyzeEmotionalIntelligence(text, context, perspectiveTaking);
+
+    const lines: string[] = [
+      `Emotional Intelligence Analysis`,
+      `Text sample: "${text.substring(0, 80)}${text.length > 80 ? "..." : ""}"`,
+      context ? `Context: ${context}` : `Context: General`,
+      `Perspective-taking level: ${(perspectiveTaking * 100).toFixed(0)}%`,
+      "",
+      `Primary emotion: ${analysis.primaryEmotion}`,
+      `Secondary emotions: ${analysis.secondaryEmotions.join(", ")}`,
+      `Emotional intensity: ${(analysis.emotionalIntensity * 100).toFixed(0)}%`,
+      `Sentiment: ${analysis.sentimentScore > 0.3 ? "Positive" : analysis.sentimentScore < -0.3 ? "Negative" : "Neutral"} (${analysis.sentimentScore.toFixed(2)})`,
+      `Empathy score: ${(analysis.empathyScore * 100).toFixed(0)}%`,
+      `Persuasion effectiveness: ${(analysis.persuasionScore * 100).toFixed(0)}%`,
+      "",
+    ];
+
+    if (analysis.stakeholderAnalysis.length > 0) {
+      lines.push("Stakeholder emotion analysis:");
+      analysis.stakeholderAnalysis.forEach(sa => {
+        lines.push(`  • ${sa.stakeholder}: ${sa.likelyEmotion} (intensity: ${(sa.intensity * 100).toFixed(0)}%)`);
+      });
+      lines.push("");
+    }
+
+    if (analysis.recommendations.length > 0) {
+      lines.push("Recommendations:");
+      analysis.recommendations.forEach(rec => {
+        lines.push(`  • ${rec}`);
+      });
+    }
+
+    return {
+      content: [{
+        type: "text",
+        text: lines.join("\n"),
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Emotional intelligence analysis error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+function handleExplainDecision(args: Record<string, unknown>) {
+  const nodeId = args.nodeId as string;
+  const detailLevelRaw = (args.detailLevel as string) || "detailed";
+  const includeCounterfactuals = (args.includeCounterfactuals as boolean) ?? true;
+  
+  // Validate detailLevel
+  const validDetailLevels = ["simple", "detailed", "technical"] as const;
+  const detailLevel = validDetailLevels.includes(detailLevelRaw as any) 
+    ? (detailLevelRaw as "simple" | "detailed" | "technical")
+    : "detailed";
+
+  if (!nodeId) {
+    return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  try {
+    const explanation = explainDecision(graph, nodeId, detailLevel, includeCounterfactuals);
+    const formatted = formatExplanation(explanation, detailLevel);
+
+    return {
+      content: [{
+        type: "text",
+        text: formatted,
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Decision explanation error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+function handleSocialImpactAnalysis(args: Record<string, unknown>) {
+  const nodeId = args.nodeId as string;
+  const stakeholders = (args.stakeholders as string[]) || ["customers", "employees", "investors", "community"];
+
+  if (!nodeId) {
+    return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  try {
+    const assessment = analyzeSocialImpact(graph, nodeId, stakeholders);
+    
+    // Apply to node if it exists
+    const node = graph.getNode(nodeId);
+    if (node) {
+      node.socialImpact = {
+        stakeholderEmotions: new Map(
+          assessment.stakeholderAnalyses.map(sa => [sa.stakeholder, sa.likelyEmotion])
+        ),
+        groupCohesionScore: assessment.groupCohesionScore,
+        persuasionEffectiveness: assessment.persuasionEffectiveness,
+        ethicalAlignment: assessment.ethicalAlignment[0] || {
+          framework: "deontological",
+          assessment: "No ethical evaluation",
+          alignmentScore: 0.5,
+          concerns: [],
+        },
+      };
+    }
+
+    const lines: string[] = [
+      `Social Impact Analysis for node ${nodeId}`,
+      `Stakeholders: ${stakeholders.join(", ")}`,
+      "",
+      `Group Cohesion Score: ${(assessment.groupCohesionScore * 100).toFixed(0)}%`,
+      `Persuasion Effectiveness: ${(assessment.persuasionEffectiveness * 100).toFixed(0)}%`,
+      "",
+      "Stakeholder Analysis:",
+    ];
+
+    assessment.stakeholderAnalyses.forEach(sa => {
+      lines.push(`• ${sa.stakeholder}:`);
+      lines.push(`  Emotion: ${sa.likelyEmotion} (intensity: ${(sa.intensity * 100).toFixed(0)}%)`);
+      lines.push(`  Impact: ${sa.impact}`);
+      if (sa.concerns.length > 0) {
+        lines.push(`  Concerns: ${sa.concerns.join(", ")}`);
+      }
+      lines.push(`  Communication: ${sa.suggestedCommunication}`);
+      lines.push("");
+    });
+
+    if (assessment.ethicalAlignment.length > 0) {
+      lines.push("Ethical Alignment:");
+      assessment.ethicalAlignment.forEach(ea => {
+        lines.push(`  • ${ea.framework}: ${(ea.alignmentScore * 100).toFixed(0)}%`);
+      });
+      lines.push("");
+    }
+
+    if (assessment.recommendations.length > 0) {
+      lines.push("Recommendations:");
+      assessment.recommendations.forEach(rec => {
+        lines.push(`  • ${rec}`);
+      });
+    }
+
+    metaState = updateMetacognition(metaState, graph);
+
+    return {
+      content: [{
+        type: "text",
+        text: lines.join("\n"),
+      }],
+    };
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Social impact analysis error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
 }
 
 async function main() {

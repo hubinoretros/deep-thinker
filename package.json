@@ -1,7 +1,7 @@
 {
   "name": "deep-thinker",
-  "version": "1.0.3",
-  "description": "Advanced cognitive thinking MCP with DAG-based thought graph, multiple strategies, metacognition, and self-evaluation",
+  "version": "1.1.0",
+  "description": "Advanced cognitive thinking MCP with DAG-based thought graph, multiple strategies, metacognition, self-evaluation, and high-IQ reasoning enhancements",
   "type": "module",
   "bin": {
     "deep-thinker": "./dist/index.js"
@@ -16,7 +16,8 @@
     "build": "tsc",
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "node --test dist/test.js"
   },
   "keywords": [
     "mcp",
@@ -27,7 +28,16 @@
     "dag",
     "dialectic",
     "abduction",
-    "analogical"
+    "analogical",
+    "ethics",
+    "emotional-intelligence",
+    "cross-disciplinary",
+    "temporal-reasoning",
+    "decision-explanation",
+    "social-impact",
+    "high-iq",
+    "artificial-intelligence",
+    "reasoning-engine"
   ],
   "license": "MIT",
   "repository": {

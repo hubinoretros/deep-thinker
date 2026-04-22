@@ -48,6 +48,13 @@ export interface ThoughtNode {
   status: NodeStatus;
   critique: Critique | null;
   knowledge: KnowledgeReference[];
+  // Enhanced fields for high-IQ reasoning
+  language?: LanguageCode;
+  emotionalTone?: EmotionType;
+  uncertaintyModel?: UncertaintyModel;
+  ethicalConsiderations?: EthicalEvaluation[];
+  crossDomainReferences?: CrossDomainReference[];
+  socialImpact?: SocialImpactAnalysis;
 }
 
 export interface ThoughtEdge {
@@ -163,3 +170,65 @@ export const EDGE_TYPE_DESCRIPTIONS: Record<EdgeType, string> = {
   abstracts: "This thought generalizes from the specific target",
   instantiates: "This thought provides a specific case of the abstract target",
 };
+
+// Enhanced types for high-IQ reasoning
+export type EmotionType =
+  | "neutral"
+  | "curious"
+  | "skeptical"
+  | "confident"
+  | "concerned"
+  | "optimistic"
+  | "pessimistic"
+  | "analytical"
+  | "creative"
+  | "critical";
+
+export interface UncertaintyModel {
+  confidence: number; // 0-1
+  confidenceInterval: [number, number];
+  probabilityDistribution: Map<string, number>;
+  sensitivityAnalysis: Map<string, number>; // impact of each factor
+}
+
+export interface EthicalEvaluation {
+  framework: "deontological" | "consequentialist" | "virtue" | "rights_based";
+  assessment: string;
+  alignmentScore: number; // 0-1
+  concerns: string[];
+}
+
+export interface CrossDomainReference {
+  sourceDomain: string;
+  targetDomain: string;
+  mapping: string;
+  insight: string;
+  relevance: number; // 0-1
+}
+
+export interface SocialImpactAnalysis {
+  stakeholderEmotions: Map<string, EmotionType>;
+  groupCohesionScore: number; // 0-1
+  persuasionEffectiveness: number; // 0-1
+  ethicalAlignment: EthicalEvaluation;
+}
+
+export type LanguageCode = "en" | "tr" | "de" | "fr" | "es" | "jp" | "zh" | "ru";
+
+// Enhanced ThoughtNode with high-IQ capabilities
+export interface EnhancedThoughtNode extends ThoughtNode {
+  language?: LanguageCode;
+  emotionalTone?: EmotionType;
+  uncertaintyModel?: UncertaintyModel;
+  ethicalConsiderations?: EthicalEvaluation[];
+  crossDomainReferences?: CrossDomainReference[];
+  socialImpact?: SocialImpactAnalysis;
+}
+
+export type MetacognitiveLayer = 1 | 2 | 3 | 4 | 5;
+
+export interface LayerDescription {
+  level: MetacognitiveLayer;
+  description: string;
+  focus: string;
+}

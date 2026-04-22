@@ -46,6 +46,15 @@ npx deep-thinker
 - **Metacognitive Engine** — Detects stuck states, stagnation, declining confidence; suggests strategy switches and corrective actions
 - **Knowledge Integration** — Attach external knowledge to thoughts, detect gaps, validate consistency across sources
 - **Thought Pruning** — Dead-end detection, redundancy removal, deep unproductive branch elimination, path optimization
+- **High-IQ Reasoning Enhancements** — 8 new tools for advanced cognition: visualization, devil's advocate, cross-disciplinary synthesis, temporal projection, ethical evaluation, emotional intelligence analysis, decision explanation, social impact analysis
+- **Emotional Intelligence** — Analyze emotional tone, empathy, persuasion effectiveness, stakeholder emotions
+- **Ethical Frameworks** — Evaluate through deontological, consequentialist, virtue ethics, rights-based perspectives
+- **Cross-Domain Synthesis** — Combine insights from biology, economics, physics, psychology, computer science, art
+- **Temporal Reasoning** — Project thoughts into future/past scenarios with optimistic, pessimistic, realistic, disruptive scenarios
+- **Social Impact Modeling** — Analyze stakeholder emotions, group cohesion, persuasion effectiveness, ethical alignment
+- **Uncertainty Quantification** — Confidence intervals, probability distributions, sensitivity analysis for robust decisions
+- **Multi-Language Support** — Thoughts in English, Turkish, German, French, Spanish, Japanese, Chinese, Russian
+- **Meta-Cognitive Layers** — Recursive reasoning across 5 levels of meta-cognition
 
 ## Installation
 
@@ -192,6 +201,102 @@ Reset the thought graph and start a fresh session.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `problem` | string | No | New problem statement |
+
+## Enhanced Tools (High-IQ Reasoning)
+
+### `visualize_thought_graph`
+
+Generate visual representation of the thought graph as SVG or ASCII.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `format` | string | No | `svg`, `ascii`, or `tree` (default: ascii) |
+| `highlightPath` | string | No | Path between two node IDs (format: `fromId-toId`) |
+| `showConfidence` | boolean | No | Show confidence scores (default: true) |
+
+### `simulate_devils_advocate`
+
+Generate counterarguments and opposing viewpoints for a given thought.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeId` | string | Yes | Target node ID to challenge |
+| `depth` | number | No | Levels of counterarguments (1-5, default: 2) |
+| `intensity` | string | No | `mild`, `moderate`, or `aggressive` (default: moderate) |
+
+### `cross_disciplinary_synthesis`
+
+Combine insights from multiple domains to generate novel perspectives.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `sourceDomains` | string[] | Yes | Domains to draw analogies from (e.g., `["biology", "economics", "art"]`) |
+| `targetProblem` | string | Yes | Problem to apply cross-domain insights to |
+| `maxAnalogies` | number | No | Max analogies to generate (1-10, default: 3) |
+
+### `temporal_projection`
+
+Project thoughts into future or past scenarios.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeId` | string | Yes | Root node ID to project from |
+| `years` | number | Yes | Years forward (positive) or backward (negative) |
+| `scenario` | string | No | `optimistic`, `pessimistic`, `realistic`, `disruptive` (default: realistic) |
+
+### `ethical_framework_evaluation`
+
+Evaluate a thought or decision through multiple ethical frameworks.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeId` | string | Yes | Node ID to evaluate ethically |
+| `frameworks` | string[] | No | Which frameworks: `deontological`, `consequentialist`, `virtue`, `rights_based` (default: all) |
+
+### `emotional_intelligence_analysis`
+
+Analyze emotional tone, stakeholder emotions, and social dynamics.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `text` | string | Yes | Text to analyze for emotional content |
+| `context` | string | No | Context (e.g., `team meeting`, `customer feedback`, `crisis situation`) |
+| `perspectiveTaking` | number | No | Level of perspective-taking 0-1 (default: 0.7) |
+
+### `explain_decision`
+
+Generate human-understandable explanation of a decision path.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeId` | string | Yes | Decision/conclusion node ID to explain |
+| `detailLevel` | string | No | `simple`, `detailed`, `technical` (default: detailed) |
+| `includeCounterfactuals` | boolean | No | Show what-if scenarios (default: true) |
+
+### `social_impact_analysis`
+
+Analyze social impact, stakeholder emotions, group cohesion, and persuasion effectiveness.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `nodeId` | string | Yes | Node ID to analyze for social impact |
+| `stakeholders` | string[] | No | Stakeholder groups (default: `["customers", "employees", "investors", "community"]`) |
 
 ## Usage Examples
 
