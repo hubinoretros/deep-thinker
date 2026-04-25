@@ -33,7 +33,11 @@ export type Strategy =
   | "dialectic"
   | "parallel"
   | "analogical"
-  | "abductive";
+  | "abductive"
+  | "first_principles"
+  | "counterfactual"
+  | "systems_thinking"
+  | "mcts";
 
 export interface ThoughtNode {
   id: string;
@@ -157,6 +161,10 @@ export const STRATEGY_DESCRIPTIONS: Record<Strategy, string> = {
   parallel: "Exploring multiple independent branches simultaneously",
   analogical: "Mapping patterns from a known domain to the current problem",
   abductive: "Inference to the best explanation from available evidence",
+  first_principles: "Deconstructing to fundamental truths and rebuilding from scratch",
+  counterfactual: "What-if analysis exploring alternative scenarios and ripple effects",
+  systems_thinking: "Analyzing feedback loops, leverage points, and emergent properties",
+  mcts: "Monte Carlo Tree Search for optimal decision path selection through simulation",
 };
 
 export const EDGE_TYPE_DESCRIPTIONS: Record<EdgeType, string> = {

@@ -16,6 +16,10 @@ import {
   applyParallel,
   applyAnalogical,
   applyAbductive,
+  applyFirstPrinciples,
+  applyCounterfactual,
+  applySystemsThinking,
+  applyMCTS,
   type StrategyContext,
 } from "./core/strategies.js";
 import {
@@ -28,6 +32,11 @@ import {
   updateMetacognition,
   switchStrategy,
   metacognitiveReport,
+  recommendSpecializedStrategy,
+  shouldTriggerFirstPrinciples,
+  shouldTriggerCounterfactual,
+  shouldTriggerSystemsThinking,
+  shouldTriggerMCTS,
 } from "./core/metacog.js";
 import {
   integrateKnowledge,
@@ -97,8 +106,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           strategy: {
             type: "string",
-            enum: ["sequential", "dialectic", "parallel", "analogical", "abductive"],
-            description: "Reasoning strategy to use (default: current strategy from metacognition)",
+            enum: ["sequential", "dialectic", "parallel", "analogical", "abductive", "first_principles", "counterfactual", "systems_thinking", "mcts"],
+            description: "Reasoning strategy to use (default: current strategy from metacognition). New strategies: first_principles=deconstruct to fundamentals, counterfactual=what-if analysis, systems_thinking=feedback loops & leverage points, mcts=Monte Carlo tree search for optimization",
           },
           confidence: {
             type: "number",
@@ -180,6 +189,90 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
             },
             description: "Abductive mode: observation, explanations, and best explanation",
           },
+          firstPrinciples: {
+            type: "object",
+            properties: {
+              problem: { type: "string", description: "The problem to deconstruct (default: uses content)" },
+              assumptions: { type: "array", items: { type: "string" }, description: "Assumptions to challenge" },
+              depth: { type: "number", minimum: 1, maximum: 5, description: "Decomposition depth (default: 3)" },
+              domain: { type: "string", description: "Optional domain context (e.g., 'physics', 'economics')" },
+            },
+            description: "First Principles mode: deconstruct problem to fundamental truths and rebuild",
+          },
+          counterfactual: {
+            type: "object",
+            properties: {
+              currentState: { type: "string", description: "Description of current state (default: uses content)" },
+              variablesToChange: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    variable: { type: "string", description: "Variable name to change" },
+                    currentValue: { type: "string", description: "Current value" },
+                    hypotheticalValue: { type: "string", description: "Hypothetical value" },
+                    impactWeight: { type: "number", minimum: 0, maximum: 1, description: "Impact weight 0-1" },
+                  },
+                  required: ["variable", "currentValue", "hypotheticalValue"],
+                },
+                description: "Variables to modify in what-if scenario",
+              },
+              timeHorizon: { type: "string", enum: ["immediate", "short_term", "medium_term", "long_term"], description: "Time horizon for effects" },
+              rippleDepth: { type: "number", minimum: 1, maximum: 5, description: "Number of ripple effect stages (default: 3)" },
+            },
+            required: ["variablesToChange"],
+            description: "Counterfactual mode: what-if analysis with ripple effects",
+          },
+          systemsThinking: {
+            type: "object",
+            properties: {
+              systemDescription: { type: "string", description: "System description (default: uses content)" },
+              boundaries: { type: "array", items: { type: "string" }, description: "System boundaries" },
+              components: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    type: { type: "string", enum: ["stock", "flow", "converter", "connector"] },
+                    description: { type: "string" },
+                  },
+                  required: ["name", "type", "description"],
+                },
+                description: "System components (min 2 required)",
+              },
+              timeScale: { type: "string", enum: ["immediate", "short_term", "medium_term", "long_term"], description: "Analysis time scale" },
+              focusArea: { type: "string", enum: ["feedback_loops", "leverage_points", "emergence", "resilience", "all"], description: "Analysis focus" },
+            },
+            required: ["components"],
+            description: "Systems Thinking mode: analyze feedback loops and leverage points",
+          },
+          mcts: {
+            type: "object",
+            properties: {
+              problem: { type: "string", description: "Problem to solve (default: uses content)" },
+              possibleActions: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string", description: "Action identifier" },
+                    description: { type: "string", description: "Action description" },
+                    estimatedReward: { type: "number", minimum: -1, maximum: 1, description: "Estimated reward -1 to 1" },
+                    constraints: { type: "array", items: { type: "string" }, description: "Action constraints" },
+                  },
+                  required: ["id", "description"],
+                },
+                description: "Possible actions to evaluate (min 2)",
+              },
+              simulationDepth: { type: "number", minimum: 1, maximum: 10, description: "Simulation depth (default: 5)" },
+              numSimulations: { type: "number", minimum: 10, maximum: 1000, description: "Number of simulations (default: 100)" },
+              explorationConstant: { type: "number", minimum: 0.1, maximum: 5, description: "UCB1 exploration constant (default: 1.414)" },
+              pruningThreshold: { type: "number", minimum: 0, maximum: 1, description: "Pruning threshold (default: 0.2)" },
+            },
+            required: ["possibleActions"],
+            description: "MCTS mode: Monte Carlo Tree Search for optimal path selection",
+          },
           knowledge: {
             type: "object",
             properties: {
@@ -233,8 +326,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           strategy: {
             type: "string",
-            enum: ["sequential", "dialectic", "parallel", "analogical", "abductive"],
-            description: "New strategy (for switch action)",
+            enum: ["sequential", "dialectic", "parallel", "analogical", "abductive", "first_principles", "counterfactual", "systems_thinking", "mcts"],
+            description: "New strategy (for switch action). New: first_principles, counterfactual, systems_thinking, mcts",
           },
           reason: {
             type: "string",
@@ -600,6 +693,88 @@ function handleThink(args: Record<string, unknown>) {
       bestExplanation?: string;
     };
     result = applyAbductive(ctx, ab.observation, ab.explanations, ab.bestExplanation ?? null, confidence);
+  } else if (args.firstPrinciples && strategy === "first_principles") {
+    const fp = args.firstPrinciples as {
+      problem: string;
+      assumptions?: string[];
+      depth?: number;
+      domain?: string;
+    };
+    result = applyFirstPrinciples(ctx, {
+      problem: fp.problem || content,
+      assumptions: fp.assumptions || [],
+      depth: fp.depth || 3,
+      domain: fp.domain,
+    });
+  } else if (args.counterfactual && strategy === "counterfactual") {
+    const cf = args.counterfactual as {
+      currentState: string;
+      variablesToChange: Array<{
+        variable: string;
+        currentValue: string | number | boolean;
+        hypotheticalValue: string | number | boolean;
+        impactWeight?: number;
+      }>;
+      timeHorizon?: "immediate" | "short_term" | "medium_term" | "long_term";
+      rippleDepth?: number;
+    };
+    // Ensure all variables have impactWeight with default
+    const variablesWithDefaults = (cf.variablesToChange || []).map(v => ({
+      ...v,
+      impactWeight: v.impactWeight ?? 0.5,
+    }));
+    result = applyCounterfactual(ctx, {
+      currentState: cf.currentState || content,
+      variablesToChange: variablesWithDefaults,
+      timeHorizon: cf.timeHorizon || "short_term",
+      rippleDepth: cf.rippleDepth || 3,
+    });
+  } else if (args.systemsThinking && strategy === "systems_thinking") {
+    const st = args.systemsThinking as {
+      systemDescription: string;
+      boundaries?: string[];
+      components: Array<{
+        name: string;
+        type: "stock" | "flow" | "converter" | "connector";
+        description: string;
+      }>;
+      timeScale?: "immediate" | "short_term" | "medium_term" | "long_term";
+      focusArea?: "feedback_loops" | "leverage_points" | "emergence" | "resilience" | "all";
+    };
+    result = applySystemsThinking(ctx, {
+      systemDescription: st.systemDescription || content,
+      boundaries: st.boundaries || [],
+      components: st.components || [],
+      timeScale: st.timeScale || "medium_term",
+      focusArea: st.focusArea || "all",
+    });
+  } else if (args.mcts && strategy === "mcts") {
+    const mcts = args.mcts as {
+      problem: string;
+      possibleActions: Array<{
+        id: string;
+        description: string;
+        estimatedReward?: number;
+        constraints?: string[];
+      }>;
+      simulationDepth?: number;
+      numSimulations?: number;
+      explorationConstant?: number;
+      pruningThreshold?: number;
+    };
+    // Ensure all actions have constraints with default
+    const actionsWithDefaults = (mcts.possibleActions || []).map(a => ({
+      ...a,
+      constraints: a.constraints ?? [],
+    }));
+    result = applyMCTS(ctx, {
+      problem: mcts.problem || content,
+      possibleActions: actionsWithDefaults,
+      simulationDepth: mcts.simulationDepth || 5,
+      numSimulations: mcts.numSimulations || 100,
+      explorationConstant: mcts.explorationConstant || 1.414,
+      pruningThreshold: mcts.pruningThreshold || 0.2,
+    });
   } else {
     result = applySequential(ctx, content, type, confidence);
   }
@@ -647,6 +822,15 @@ function handleThink(args: Record<string, unknown>) {
   if (metaState.stuckDetected) {
     lines.push("");
     lines.push(`⚠ Stuck detected: ${metaState.stuckReason}`);
+  }
+
+  // Check for specialized strategy recommendations
+  const allNodes = graph.getAllNodes();
+  const specializedRec = recommendSpecializedStrategy(metaState.progressMetrics, allNodes, metaState.currentStrategy);
+  
+  if (specializedRec) {
+    lines.push(`🎯 Specialized Strategy Detected: ${specializedRec.strategy}`);
+    lines.push(`   Reason: ${specializedRec.reason}`);
   }
 
   if (metaState.suggestedAction) {

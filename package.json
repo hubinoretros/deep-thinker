@@ -1,7 +1,7 @@
 {
   "name": "deep-thinker",
-  "version": "1.1.0",
-  "description": "Advanced cognitive thinking MCP with DAG-based thought graph, multiple strategies, metacognition, self-evaluation, and high-IQ reasoning enhancements",
+  "version": "2.0.0",
+  "description": "Advanced cognitive thinking MCP with DAG-based thought graph, 9 reasoning strategies including First Principles, Counterfactual, Systems Thinking & MCTS, metacognition, and high-IQ reasoning enhancements",
   "type": "module",
   "bin": {
     "deep-thinker": "./dist/index.js"
@@ -17,7 +17,7 @@
     "prepublishOnly": "npm run build",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
-    "test": "node --test dist/test.js"
+    "test": "node --test dist/test.js dist/test_enhanced_strategies.js"
   },
   "keywords": [
     "mcp",
@@ -29,6 +29,14 @@
     "dialectic",
     "abduction",
     "analogical",
+    "first-principles",
+    "counterfactual",
+    "systems-thinking",
+    "mcts",
+    "monte-carlo",
+    "optimization",
+    "feedback-loops",
+    "leverage-points",
     "ethics",
     "emotional-intelligence",
     "cross-disciplinary",
@@ -37,7 +45,10 @@
     "social-impact",
     "high-iq",
     "artificial-intelligence",
-    "reasoning-engine"
+    "reasoning-engine",
+    "ai-strategies",
+    "zod",
+    "typescript"
   ],
   "license": "MIT",
   "repository": {
@@ -45,7 +56,8 @@
     "url": "git+https://github.com/hubinoretros/deep-thinker.git"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.12.1"
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/node": "^22.15.3",

@@ -240,6 +240,10 @@ export class ThoughtGraph {
       parallel: 0,
       analogical: 0,
       abductive: 0,
+      first_principles: 0,
+      counterfactual: 0,
+      systems_thinking: 0,
+      mcts: 0,
     };
     const typeDist: Record<ThoughtType, number> = {
       hypothesis: 0,

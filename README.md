@@ -6,9 +6,9 @@
 [![license](https://img.shields.io/github/license/hubinoretros/deep-thinker.svg)](https://github.com/hubinoretros/deep-thinker/blob/master/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/hubinoretros/deep-thinker.svg)](https://github.com/hubinoretros/deep-thinker/stargazers)
 
-Advanced cognitive thinking MCP server with DAG-based thought graph, multiple reasoning strategies, metacognition, and self-evaluation.
+Advanced cognitive thinking MCP server with DAG-based thought graph, **9 reasoning strategies** including First Principles, Counterfactual, Systems Thinking & MCTS, metacognition, and self-evaluation.
 
-A significant evolution beyond sequential-thinking MCP, providing structured deep reasoning with graph-based thought management.
+A significant evolution beyond sequential-thinking MCP, providing structured deep reasoning with graph-based thought management, schema validation, and intelligent strategy selection.
 
 ## Quick Start
 
@@ -40,7 +40,7 @@ npx deep-thinker
 ## Features
 
 - **DAG-Based Thought Graph** — Thoughts form a directed acyclic graph with branching, merging, and cross-edges (not just a linear chain)
-- **5 Reasoning Strategies** — Sequential, Dialectic (thesis→antithesis→synthesis), Parallel, Analogical, Abductive (inference to best explanation)
+- **9 Reasoning Strategies** — Sequential, Dialectic (thesis→antithesis→synthesis), Parallel, Analogical, Abductive, **First Principles** (deconstruct to fundamentals), **Counterfactual** (what-if with ripple effects), **Systems Thinking** (feedback loops & leverage points), **MCTS** (Monte Carlo optimization)
 - **Confidence Scoring** — Multi-factor confidence evaluation with support/contradiction analysis, depth penalties, and knowledge integration boosts
 - **Self-Critique** — Automatic critique generation with severity levels and confidence adjustments
 - **Metacognitive Engine** — Detects stuck states, stagnation, declining confidence; suggests strategy switches and corrective actions
@@ -115,7 +115,7 @@ Add a thought to the cognitive graph using a reasoning strategy.
 |-----------|------|----------|-------------|
 | `content` | string | Yes | The thought content |
 | `type` | string | No | Thought type: `hypothesis`, `analysis`, `evidence`, `conclusion`, `question`, `assumption`, `insight`, `critique`, `synthesis`, `observation` |
-| `strategy` | string | No | Strategy: `sequential`, `dialectic`, `parallel`, `analogical`, `abductive` |
+| `strategy` | string | No | Strategy: `sequential`, `dialectic`, `parallel`, `analogical`, `abductive`, `first_principles`, `counterfactual`, `systems_thinking`, `mcts` |
 | `confidence` | number | No | Initial confidence 0-1 (default: 0.5) |
 | `parentId` | string | No | Parent node ID (default: last leaf) |
 | `branch` | string | No | Branch name for parallel exploration |
@@ -129,11 +129,17 @@ Add a thought to the cognitive graph using a reasoning strategy.
 
 **Strategy details:**
 
-- **Sequential** — Linear chain: each thought derives from the previous
-- **Dialectic** — Thesis → Antithesis → Synthesis pattern to resolve contradictions
-- **Parallel** — Explore multiple independent branches simultaneously
-- **Analogical** — Map patterns from a known domain to the current problem
-- **Abductive** — Generate hypotheses and infer the best explanation
+| Strategy | Description | Best For |
+|----------|-------------|----------|
+| **Sequential** | Linear chain: each thought derives from the previous | Step-by-step reasoning |
+| **Dialectic** | Thesis → Antithesis → Synthesis pattern to resolve contradictions | Resolving conflicts |
+| **Parallel** | Explore multiple independent branches simultaneously | Brainstorming options |
+| **Analogical** | Map patterns from a known domain to the current problem | Cross-domain insights |
+| **Abductive** | Generate hypotheses and infer the best explanation | Root cause analysis |
+| **First Principles** | Deconstruct to fundamental truths, challenge assumptions | Breaking conventions |
+| **Counterfactual** | "What-if" scenarios with multi-stage ripple effects | Risk/impact analysis |
+| **Systems Thinking** | Feedback loops, leverage points, emergent properties | Complex systems |
+| **MCTS** | Monte Carlo Tree Search for optimal decision selection | Optimization problems |
 
 **Edge types:** `derives_from`, `contradicts`, `supports`, `refines`, `challenges`, `synthesizes`, `parallels`, `abstracts`, `instantiates`
 
@@ -354,6 +360,77 @@ think: {
 }
 ```
 
+### First Principles Reasoning
+
+```
+think: {
+  strategy: "first_principles",
+  firstPrinciples: {
+    problem: "How to improve battery efficiency?",
+    assumptions: ["Batteries must use lithium", "Charging takes hours"],
+    depth: 3,
+    domain: "physics"
+  }
+}
+→ Creates: Problem → Assumptions Challenged → Fundamental Truths → Reconstructed Solution
+```
+
+### Counterfactual (What-If) Analysis
+
+```
+think: {
+  strategy: "counterfactual",
+  counterfactual: {
+    currentState: "Office-based work with 5-day commute",
+    variablesToChange: [
+      { variable: "work_location", currentValue: "office", hypotheticalValue: "remote", impactWeight: 0.9 },
+      { variable: "commute_days", currentValue: 5, hypotheticalValue: 0, impactWeight: 0.8 }
+    ],
+    timeHorizon: "medium_term",
+    rippleDepth: 3
+  }
+}
+→ Creates: Baseline → Variable Changes → Stage 1/2/3 Ripple Effects → Scenarios → Risk Analysis
+```
+
+### Systems Thinking
+
+```
+think: {
+  strategy: "systems_thinking",
+  systemsThinking: {
+    systemDescription: "Software development team dynamics",
+    components: [
+      { name: "FeatureBacklog", type: "stock", description: "Pending work" },
+      { name: "DeveloperCapacity", type: "stock", description: "Available developers" },
+      { name: "CodeReviews", type: "flow", description: "Review process" },
+      { name: "Quality", type: "converter", description: "Quality gates" }
+    ],
+    focusArea: "feedback_loops"
+  }
+}
+→ Creates: System Overview → Components → Feedback Loops → Leverage Points → Recommendations
+```
+
+### MCTS (Monte Carlo Tree Search)
+
+```
+think: {
+  strategy: "mcts",
+  mcts: {
+    problem: "Which architecture pattern to choose?",
+    possibleActions: [
+      { id: "microservices", description: "Microservices architecture", estimatedReward: 0.7 },
+      { id: "monolith", description: "Monolithic architecture", estimatedReward: 0.5 },
+      { id: "modular", description: "Modular monolith", estimatedReward: 0.8 }
+    ],
+    numSimulations: 100,
+    pruningThreshold: 0.2
+  }
+}
+→ Creates: Root → Actions → Simulations → Pruning Analysis → Optimal Path
+```
+
 ### Metacognitive Guidance
 
 ```
@@ -385,12 +462,32 @@ prune: { action: "prune" }
 
 ```
 src/
+├── index.ts                    MCP server & tool handlers
+├── test.ts                     Core functionality tests
+├── test_enhanced_strategies.ts New strategy tests ⭐ v2.0
+└── core/
+    ├── types.ts                Type definitions & constants
+    ├── schemas.ts              ⭐ NEW v2.0: Zod validation schemas
+    ├── node.ts                 ThoughtNode CRUD operations
+    ├── graph.ts                DAG-based thought graph
+    ├── strategies.ts           9 reasoning strategy implementations ⭐ 4 NEW v2.0
+    ├── scorer.ts               Confidence scoring & self-critique
+    ├── metacog.ts              Metacognitive engine ⭐ Smart triggers v2.0
+    ├── knowledge.ts            Knowledge integration & validation
+    └── pruner.ts               Dead-end/redundancy detection & pruning
+
+New in v2.0:
+- schemas.ts: Strict Zod validation for type safety
+- FirstPrinciples, Counterfactual, SystemsThinking, MCTS strategies
+- Smart strategy triggers in metacog.ts
+```
+src/
 ├── index.ts          MCP server & tool handlers
 └── core/
     ├── types.ts      Type definitions & constants
     ├── node.ts       ThoughtNode CRUD operations
     ├── graph.ts      DAG-based thought graph
-    ├── strategies.ts 5 reasoning strategy implementations
+    ├── strategies.ts 9 reasoning strategy implementations
     ├── scorer.ts     Confidence scoring & self-critique
     ├── metacog.ts    Metacognitive engine
     ├── knowledge.ts  Knowledge integration & validation
@@ -402,10 +499,11 @@ src/
 | Feature | sequential-thinking | deep-thinker |
 |---------|-------------------|--------------|
 | Thought structure | Linear chain | DAG (branch/merge/cross-edges) |
-| Strategies | Sequential only | 5 strategies (sequential, dialectic, parallel, analogical, abductive) |
+| Strategies | Sequential only | **9 strategies** (sequential, dialectic, parallel, analogical, abductive, **first_principles**, **counterfactual**, **systems_thinking**, **mcts**) |
+| Schema Validation | None | **Zod schemas for all strategies** |
 | Confidence | Basic thought number | Multi-factor scoring with trend analysis |
 | Self-critique | None | Automatic with severity levels |
-| Metacognition | None | Stuck detection, strategy suggestions, auto-switching |
+| Metacognition | None | Stuck detection, **smart strategy triggers**, auto-switching |
 | Knowledge | None | External references, gap detection, consistency validation |
 | Pruning | None | Dead-end, redundancy, path optimization |
 | Graph queries | Linear review | Visualization, best path, branch analysis, statistics |
@@ -427,7 +525,7 @@ npm run build
 node dist/test.js
 ```
 
-118 tests covering all modules: Node, Graph, Strategies, Scorer, Metacog, Knowledge, Pruner, Integration, Edge Cases.
+130+ tests covering all modules: Node, Graph, **9 Strategies** (including new enhanced strategies), Scorer, Metacog, Knowledge, Pruner, Integration, Edge Cases, **Schema Validation**.
 
 ## Documentation
 
