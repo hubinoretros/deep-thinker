@@ -55,6 +55,7 @@ npx deep-thinker
 - **Uncertainty Quantification** — Confidence intervals, probability distributions, sensitivity analysis for robust decisions
 - **Multi-Language Support** — Thoughts in English, Turkish, German, French, Spanish, Japanese, Chinese, Russian
 - **Meta-Cognitive Layers** — Recursive reasoning across 5 levels of meta-cognition
+- **PromptOptimizer (Node Zero)** — Entry point that transforms vague prompts into optimized Super Prompts with automatic strategy routing
 
 ## Installation
 

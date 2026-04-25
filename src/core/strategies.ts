@@ -16,6 +16,8 @@ import {
   MCTSInputSchema,
   MCTSOutputSchema,
   NodeErrorSchema,
+  PromptOptimizerInputSchema,
+  PromptOptimizerOutputSchema,
   type FirstPrinciplesInput,
   type FirstPrinciplesOutput,
   type CounterfactualInput,
@@ -25,6 +27,12 @@ import {
   type MCTSInput,
   type MCTSOutput,
   type NodeError,
+  type PromptOptimizerInput,
+  type PromptOptimizerOutput,
+  type PromptAnalysis,
+  type CoreIntent,
+  type MissingContext,
+  type EnhancedPrompt,
 } from "./schemas.js";
 
 export interface StrategyContext {
@@ -1075,5 +1083,575 @@ function _createFallbackResult(
     strategy: "sequential", // Report as sequential fallback
     nextSuggestedStrategy: null,
     reasoning: `${failedStrategy} strategy failed (${errorInfo.code}), falling back to sequential processing`,
+  };
+}
+
+// ============================================================================
+// Prompt Optimizer Node (Node Zero - Entry Point)
+// ============================================================================
+
+export interface PromptOptimizerResult {
+  nodes: ThoughtNode[];
+  edgeTypes: Array<{ from: string; to: string; type: EdgeType }>;
+  strategy: "hybrid";
+  nextSuggestedStrategy: Strategy | null;
+  reasoning: string;
+  optimizationOutput: {
+    inputAnalysis: {
+      ambiguityLevel: number;
+      domainCategory: string;
+      complexityScore: number;
+    };
+    coreIntent: {
+      primaryGoal: string;
+      successCriteria: string[];
+      desiredFormat: string;
+    };
+    missingContext: {
+      criticalGaps: Array<{ gap: string; whyItMatters: string }>;
+      suggestedClarifications: Array<{ question: string; priority: string }>;
+    };
+    enhancedPrompt: {
+      superPrompt: string;
+      reasoningStrategy: Strategy | "hybrid";
+      requiredCapabilities: string[];
+      outputSpecifications: {
+        format: string;
+        structure: string[];
+        depthLevel: string;
+      };
+    };
+    routingRecommendation: {
+      primaryStrategy: Strategy;
+      suggestedNodes: string[];
+      autoExecute: boolean;
+    };
+  };
+}
+
+export function applyPromptOptimizer(
+  ctx: StrategyContext,
+  input: PromptOptimizerInput
+): PromptOptimizerResult {
+  const startTime = Date.now();
+  
+  try {
+    // Validate input
+    const validated = PromptOptimizerInputSchema.parse(input);
+    
+    const nodes: ThoughtNode[] = [];
+    const edges: Array<{ from: string; to: string; type: EdgeType }> = [];
+
+    // Step 1: Original Prompt Node (Input Capture)
+    const originalNode = createNode({
+      content: `📥 ORIGINAL PROMPT: "${validated.originalPrompt.substring(0, 200)}${validated.originalPrompt.length > 200 ? "..." : ""}"`,
+      type: "observation",
+      strategy: "hybrid" as Strategy,
+      confidence: 1.0,
+      parentId: ctx.parentNodeId,
+      branch: `${ctx.branch}-optimizer`,
+      tags: [...ctx.tags, "node-zero", "prompt-optimizer", "original-input"],
+    });
+    nodes.push(originalNode);
+
+    if (ctx.parentNodeId) {
+      edges.push({ from: originalNode.id, to: ctx.parentNodeId, type: "derives_from" });
+    }
+
+    // Step 2: Analyze the prompt
+    const analysis = _analyzePrompt(validated);
+    
+    const analysisNode = createNode({
+      content: `🔍 ANALYSIS: Domain=${analysis.domainCategory}, Complexity=${analysis.complexityScore}/10, Ambiguity=${(analysis.ambiguityLevel * 100).toFixed(0)}%`,
+      type: "analysis",
+      strategy: "hybrid" as Strategy,
+      confidence: 0.9,
+      parentId: originalNode.id,
+      branch: `${ctx.branch}-optimizer`,
+      tags: [...ctx.tags, "prompt-analysis", `domain-${analysis.domainCategory}`, `complexity-${analysis.complexityScore}`],
+    });
+    nodes.push(analysisNode);
+    edges.push({ from: analysisNode.id, to: originalNode.id, type: "derives_from" });
+
+    // Step 3: Extract Core Intent
+    const coreIntent = _extractCoreIntent(validated, analysis);
+    
+    const intentNode = createNode({
+      content: `🎯 CORE INTENT: "${coreIntent.primaryGoal}" | Format: ${coreIntent.desiredFormat} | Success: ${coreIntent.successCriteria.slice(0, 2).join("; ")}`,
+      type: "insight",
+      strategy: "hybrid" as Strategy,
+      confidence: 0.85,
+      parentId: analysisNode.id,
+      branch: `${ctx.branch}-optimizer`,
+      tags: [...ctx.tags, "core-intent", `format-${coreIntent.desiredFormat}`],
+    });
+    nodes.push(intentNode);
+    edges.push({ from: intentNode.id, to: analysisNode.id, type: "abstracts" });
+
+    // Step 4: Identify Missing Context
+    const missingContext = _identifyMissingContext(validated, analysis);
+    
+    if (missingContext.criticalGaps.length > 0) {
+      const gapsNode = createNode({
+        content: `⚠️ MISSING CONTEXT: ${missingContext.criticalGaps.length} critical gaps identified - ${missingContext.criticalGaps[0]?.gap}`,
+        type: "critique",
+        strategy: "hybrid" as Strategy,
+        confidence: 0.75,
+        parentId: intentNode.id,
+        branch: `${ctx.branch}-optimizer`,
+        tags: [...ctx.tags, "missing-context", `gaps-${missingContext.criticalGaps.length}`],
+      });
+      nodes.push(gapsNode);
+      edges.push({ from: gapsNode.id, to: intentNode.id, type: "challenges" });
+    }
+
+    // Step 5: Generate Enhanced Prompt (Super Prompt)
+    const enhancedPrompt = _generateSuperPrompt(validated, analysis, coreIntent, missingContext);
+    
+    const superPromptNode = createNode({
+      content: `✨ SUPER PROMPT: "${enhancedPrompt.superPrompt.substring(0, 150)}..." [Strategy: ${enhancedPrompt.reasoningStrategy}]`,
+      type: "synthesis",
+      strategy: "hybrid" as Strategy,
+      confidence: 0.9,
+      parentId: intentNode.id,
+      branch: `${ctx.branch}-optimizer`,
+      tags: [...ctx.tags, "super-prompt", `strategy-${enhancedPrompt.reasoningStrategy}`, "optimized-output"],
+    });
+    nodes.push(superPromptNode);
+    edges.push({ from: superPromptNode.id, to: intentNode.id, type: "synthesizes" });
+    
+    // Connect to analysis node as well
+    edges.push({ from: superPromptNode.id, to: analysisNode.id, type: "derives_from" });
+
+    // Step 6: Routing Recommendation
+    const routing = _determineRouting(enhancedPrompt, analysis);
+    
+    const routingNode = createNode({
+      content: `🚦 ROUTING: Primary=${routing.primaryStrategy} | Nodes=[${routing.suggestedNodes.join(", ")}] | AutoExecute=${routing.autoExecute}`,
+      type: "conclusion",
+      strategy: "hybrid" as Strategy,
+      confidence: 0.88,
+      parentId: superPromptNode.id,
+      branch: `${ctx.branch}-optimizer`,
+      tags: [...ctx.tags, "routing", `primary-${routing.primaryStrategy}`, ...routing.suggestedNodes.map(n => `node-${n}`)],
+    });
+    nodes.push(routingNode);
+    edges.push({ from: routingNode.id, to: superPromptNode.id, type: "derives_from" });
+
+    // Calculate processing time and metrics
+    const processingTime = Date.now() - startTime;
+    const expansionRatio = enhancedPrompt.superPrompt.length / validated.originalPrompt.length;
+    const optimizationScore = _calculateOptimizationScore(analysis, missingContext, enhancedPrompt);
+
+    return {
+      nodes,
+      edgeTypes: edges,
+      strategy: "hybrid",
+      nextSuggestedStrategy: routing.primaryStrategy,
+      reasoning: `PromptOptimizer: original(${validated.originalPrompt.length}chars) → analysis → intent extraction → gap identification → super-prompt(${enhancedPrompt.superPrompt.length}chars) → routing recommendation`,
+      optimizationOutput: {
+        inputAnalysis: {
+          ambiguityLevel: analysis.ambiguityLevel,
+          domainCategory: analysis.domainCategory,
+          complexityScore: analysis.complexityScore,
+        },
+        coreIntent: {
+          primaryGoal: coreIntent.primaryGoal,
+          successCriteria: coreIntent.successCriteria,
+          desiredFormat: coreIntent.desiredFormat,
+        },
+        missingContext: {
+          criticalGaps: missingContext.criticalGaps,
+          suggestedClarifications: missingContext.suggestedClarifications,
+        },
+        enhancedPrompt: {
+          superPrompt: enhancedPrompt.superPrompt,
+          reasoningStrategy: enhancedPrompt.reasoningStrategy,
+          requiredCapabilities: enhancedPrompt.requiredCapabilities,
+          outputSpecifications: enhancedPrompt.outputSpecifications,
+        },
+        routingRecommendation: {
+          primaryStrategy: routing.primaryStrategy,
+          suggestedNodes: routing.suggestedNodes,
+          autoExecute: routing.autoExecute,
+        },
+      },
+    };
+    
+  } catch (error) {
+    // Fallback to simple pass-through
+    return _createPromptOptimizerFallback(ctx, input, error);
+  }
+}
+
+// ============================================================================
+// Prompt Optimizer Helper Functions
+// ============================================================================
+
+function _analyzePrompt(input: PromptOptimizerInput): PromptAnalysis {
+  const prompt = input.originalPrompt.toLowerCase();
+  
+  // Domain detection
+  let domainCategory: PromptAnalysis["domainCategory"] = "general";
+  if (/\b(code|program|function|class|api|database|server|client|algorithm|debug)\b/.test(prompt)) {
+    domainCategory = "technical";
+  } else if (/\b(strategy|plan|decision|optimize|improve|efficiency|cost|benefit)\b/.test(prompt)) {
+    domainCategory = "strategic";
+  } else if (/\b(analyze|compare|evaluate|assess|research|study|data)\b/.test(prompt)) {
+    domainCategory = "analytical";
+  } else if (/\b(design|create|build|develop|innovate|concept)\b/.test(prompt)) {
+    domainCategory = "creative";
+  } else if (/\b(science|experiment|hypothesis|theory|physics|biology|chemistry)\b/.test(prompt)) {
+    domainCategory = "scientific";
+  } else if (/\b(business|market|customer|revenue|profit|sales|marketing)\b/.test(prompt)) {
+    domainCategory = "business";
+  }
+
+  // Ambiguity detection
+  const vagueWords = ["something", "somehow", "maybe", "perhaps", "whatever", "whatever", "etc", "and so on"];
+  const ambiguityCount = vagueWords.filter(w => prompt.includes(w)).length;
+  const ambiguityLevel = Math.min(1, ambiguityCount / 3 + (input.originalPrompt.length < 50 ? 0.3 : 0));
+
+  // Complexity scoring
+  let complexityScore = Math.min(10, Math.max(1, 
+    input.originalPrompt.split(/[.!?;]+/).length + // Sentence count
+    input.originalPrompt.split(/\s+/).filter(w => w.length > 8).length * 0.5 + // Complex words
+    (input.conversationHistory?.length || 0) * 0.5 // Context depth
+  ));
+
+  // Urgency indicators
+  const urgencyWords = ["urgent", "asap", "quickly", "fast", "immediately", "deadline", "emergency", "critical"];
+  const urgencyIndicators = urgencyWords.filter(w => prompt.includes(w));
+
+  // Constraint mentions
+  const constraintWords = ["must", "should", "cannot", "limited", "budget", "time", "resource", "constraint"];
+  const constraintMentions = constraintWords.filter(w => prompt.includes(w));
+
+  return {
+    ambiguityLevel,
+    domainCategory,
+    complexityScore,
+    urgencyIndicators,
+    constraintMentions,
+  };
+}
+
+function _extractCoreIntent(input: PromptOptimizerInput, analysis: PromptAnalysis): CoreIntent {
+  const prompt = input.originalPrompt;
+  
+  // Extract primary goal (simplified - first sentence usually contains the goal)
+  const sentences = prompt.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const primaryGoal = sentences[0]?.trim() || prompt;
+
+  // Detect desired format
+  let desiredFormat: CoreIntent["desiredFormat"] = "structured_analysis";
+  if (/\b(code|function|class|script|program)\b/i.test(prompt)) {
+    desiredFormat = "code";
+  } else if (/\b(step by step|how to|guide|tutorial|instructions)\b/i.test(prompt)) {
+    desiredFormat = "step_by_step_guide";
+  } else if (/\b(compare|versus|vs|difference between|pros and cons)\b/i.test(prompt)) {
+    desiredFormat = "comparative_evaluation";
+  } else if (/\b(design|proposal|plan|solution)\b/i.test(prompt)) {
+    desiredFormat = "creative_proposal";
+  } else if (/\b(specification|specs|requirements|technical)\b/i.test(prompt)) {
+    desiredFormat = "technical_specification";
+  } else if (/\b(recommend|should|best option|advise|suggest)\b/i.test(prompt)) {
+    desiredFormat = "decision_recommendation";
+  } else if (/\b(explain|what is|how does|why|describe)\b/i.test(prompt)) {
+    desiredFormat = "explanation";
+  }
+
+  // Generate success criteria based on format
+  const successCriteria: string[] = [];
+  switch (desiredFormat) {
+    case "code":
+      successCriteria.push("Runnable code provided");
+      successCriteria.push("Includes error handling");
+      successCriteria.push("Follows best practices");
+      break;
+    case "decision_recommendation":
+      successCriteria.push("Clear recommendation made");
+      successCriteria.push("Pros and cons evaluated");
+      successCriteria.push("Risk assessment included");
+      break;
+    case "comparative_evaluation":
+      successCriteria.push("All options compared fairly");
+      successCriteria.push("Evaluation criteria defined");
+      successCriteria.push("Clear winner identified");
+      break;
+    default:
+      successCriteria.push("Comprehensive analysis provided");
+      successCriteria.push("Key insights highlighted");
+      successCriteria.push("Actionable conclusions drawn");
+  }
+
+  return {
+    primaryGoal,
+    secondaryGoals: [], // Could extract from later sentences
+    successCriteria,
+    targetAudience: input.userContext?.expertiseLevel,
+    desiredFormat,
+  };
+}
+
+function _identifyMissingContext(input: PromptOptimizerInput, analysis: PromptAnalysis): MissingContext {
+  const prompt = input.originalPrompt.toLowerCase();
+  const criticalGaps: MissingContext["criticalGaps"] = [];
+  const suggestedClarifications: MissingContext["suggestedClarifications"] = [];
+  const implicitAssumptions: MissingContext["implicitAssumptions"] = [];
+
+  // Check for missing context based on domain
+  if (analysis.domainCategory === "technical" && !/\b(language|framework|platform|environment)\b/.test(prompt)) {
+    criticalGaps.push({
+      gap: "Technical stack not specified",
+      whyItMatters: "Implementation details depend heavily on chosen technologies",
+      assumptionMade: "Generic solution applicable to common stacks",
+    });
+    suggestedClarifications.push({
+      question: "What programming language/framework are you using?",
+      priority: "high",
+      impact: "Enables specific, runnable code examples",
+    });
+  }
+
+  if (analysis.domainCategory === "strategic" && !/\b(budget|timeline|resources|team)\b/.test(prompt)) {
+    criticalGaps.push({
+      gap: "Constraints not defined",
+      whyItMatters: "Recommendations must fit within practical limitations",
+      assumptionMade: "Moderate budget and resources available",
+    });
+    suggestedClarifications.push({
+      question: "What are your budget, timeline, and resource constraints?",
+      priority: "high",
+      impact: "Ensures feasible, realistic recommendations",
+    });
+  }
+
+  if (!/\b(for whom|audience|user|customer|stakeholder)\b/.test(prompt)) {
+    suggestedClarifications.push({
+      question: "Who is the target audience for this output?",
+      priority: "medium",
+      impact: "Allows tailoring of language and depth",
+    });
+  }
+
+  // Add implicit assumptions based on user context
+  implicitAssumptions.push({
+    assumption: `User has ${input.userContext?.expertiseLevel || "intermediate"} level expertise`,
+    riskIfWrong: "Output may be too basic or too advanced",
+    confidence: 0.7,
+  });
+
+  return {
+    criticalGaps,
+    suggestedClarifications,
+    implicitAssumptions,
+  };
+}
+
+function _generateSuperPrompt(
+  input: PromptOptimizerInput,
+  analysis: PromptAnalysis,
+  coreIntent: CoreIntent,
+  missingContext: MissingContext
+): EnhancedPrompt {
+  const original = input.originalPrompt;
+  
+  // Determine best reasoning strategy
+  let reasoningStrategy: EnhancedPrompt["reasoningStrategy"] = "sequential";
+  
+  if (analysis.complexityScore > 7 && analysis.domainCategory === "strategic") {
+    reasoningStrategy = "mcts"; // Complex decisions
+  } else if (analysis.domainCategory === "technical" && /\b(optimize|improve|scale|performance)\b/.test(original)) {
+    reasoningStrategy = "systems_thinking"; // System optimization
+  } else if (/\b(why|what if|alternative|scenario)\b/i.test(original)) {
+    reasoningStrategy = "first_principles"; // Fundamental questioning
+  } else if (/\b(compare|choose|decide|select)\b/i.test(original)) {
+    reasoningStrategy = "parallel"; // Multiple options
+  }
+
+  // Build the super prompt
+  const sections: string[] = [];
+  
+  sections.push(`# OPTIMIZED PROMPT v2.0`);
+  sections.push(`## Original Intent`);
+  sections.push(`"${coreIntent.primaryGoal}"`);
+  sections.push(``);
+  
+  sections.push(`## Context`);
+  sections.push(`- Domain: ${analysis.domainCategory}`);
+  sections.push(`- Complexity: ${analysis.complexityScore}/10`);
+  sections.push(`- Target Audience: ${coreIntent.targetAudience || "General"}`);
+  sections.push(`- Expertise Level: ${input.userContext?.expertiseLevel || "Intermediate"}`);
+  sections.push(``);
+  
+  if (missingContext.criticalGaps.length > 0) {
+    sections.push(`## Assumptions (Gaps Identified)`);
+    missingContext.criticalGaps.forEach(gap => {
+      sections.push(`- ${gap.gap}: ${gap.assumptionMade}`);
+    });
+    sections.push(``);
+  }
+  
+  sections.push(`## Requirements`);
+  coreIntent.successCriteria.forEach(criterion => {
+    sections.push(`- [ ] ${criterion}`);
+  });
+  sections.push(``);
+  
+  sections.push(`## Output Format`);
+  sections.push(`Format: ${coreIntent.desiredFormat}`);
+  sections.push(`Depth: ${input.userContext?.preferences?.technicalDepth || "moderate"}`);
+  sections.push(`Verbosity: ${input.userContext?.preferences?.verbosity || "balanced"}`);
+  sections.push(``);
+  
+  sections.push(`## Core Task`);
+  sections.push(original);
+  sections.push(``);
+  
+  sections.push(`## Success Metrics`);
+  sections.push(`The response should be: ${coreIntent.successCriteria.join("; ")}`);
+
+  const superPrompt = sections.join("\n");
+
+  // Determine required capabilities
+  const requiredCapabilities: EnhancedPrompt["requiredCapabilities"] = ["analysis"];
+  if (reasoningStrategy === "mcts") requiredCapabilities.push("evaluation", "optimization");
+  if (coreIntent.desiredFormat === "creative_proposal") requiredCapabilities.push("creation");
+  if (/\b(compare|versus)\b/i.test(original)) requiredCapabilities.push("comparison");
+
+  return {
+    superPrompt,
+    reasoningStrategy,
+    strategyRationale: `Selected ${reasoningStrategy} based on ${analysis.domainCategory} domain and complexity ${analysis.complexityScore}/10`,
+    requiredCapabilities,
+    suggestedChain: undefined, // Could be populated for complex scenarios
+    outputSpecifications: {
+      format: coreIntent.desiredFormat,
+      structure: ["Introduction", "Analysis", "Recommendations", "Conclusion"],
+      depthLevel: input.userContext?.preferences?.technicalDepth === "deep" ? "exhaustive" : 
+                  input.userContext?.preferences?.technicalDepth === "high_level" ? "high_level" : "detailed",
+      includeExamples: input.userContext?.preferences?.includeCode || false,
+      includeEdgeCases: true,
+    },
+  };
+}
+
+function _determineRouting(
+  enhancedPrompt: EnhancedPrompt,
+  analysis: PromptAnalysis
+): PromptOptimizerOutput["routingRecommendation"] {
+  type SuggestedNode = "FirstPrinciplesNode" | "CounterfactualNode" | "SystemsThinkingNode" | "MCTSNode" | "DialecticNode" | "AbductiveNode";
+  
+  const strategyToNode: Record<string, SuggestedNode[]> = {
+    sequential: [],
+    dialectic: ["DialecticNode"],
+    parallel: [],
+    analogical: [],
+    abductive: ["AbductiveNode"],
+    first_principles: ["FirstPrinciplesNode"],
+    counterfactual: ["CounterfactualNode"],
+    systems_thinking: ["SystemsThinkingNode"],
+    mcts: ["MCTSNode"],
+    hybrid: ["FirstPrinciplesNode", "CounterfactualNode"],
+  };
+
+  const primaryStrategy = enhancedPrompt.reasoningStrategy === "hybrid" ? "first_principles" : enhancedPrompt.reasoningStrategy;
+  
+  // Auto-execute for simple, low-ambiguity prompts
+  const autoExecute = analysis.ambiguityLevel < 0.3 && analysis.complexityScore < 5;
+
+  return {
+    primaryStrategy,
+    fallbackStrategy: "sequential",
+    suggestedNodes: (strategyToNode[enhancedPrompt.reasoningStrategy] || []) as SuggestedNode[],
+    autoExecute,
+  };
+}
+
+function _calculateOptimizationScore(
+  analysis: PromptAnalysis,
+  missingContext: MissingContext,
+  enhancedPrompt: EnhancedPrompt
+): number {
+  // Higher score = better optimization
+  let score = 0.5; // Base score
+  
+  // Bonus for addressing ambiguity
+  if (analysis.ambiguityLevel > 0.5 && missingContext.criticalGaps.length > 0) {
+    score += 0.2;
+  }
+  
+  // Bonus for structure
+  if (enhancedPrompt.outputSpecifications.structure.length > 2) {
+    score += 0.15;
+  }
+  
+  // Bonus for specificity
+  if (enhancedPrompt.reasoningStrategy !== "sequential") {
+    score += 0.15;
+  }
+  
+  return Math.min(1, score);
+}
+
+function _createPromptOptimizerFallback(
+  ctx: StrategyContext,
+  input: PromptOptimizerInput,
+  error: unknown
+): PromptOptimizerResult {
+  console.error("[PromptOptimizer] Failed, using fallback:", error);
+  
+  const nodes: ThoughtNode[] = [];
+  const edges: Array<{ from: string; to: string; type: EdgeType }> = [];
+  
+  const passThroughNode = createNode({
+    content: `📥 PASS-THROUGH (Optimizer Failed): "${input.originalPrompt.substring(0, 100)}..."`,
+    type: "observation",
+    strategy: "sequential",
+    confidence: 0.7,
+    parentId: ctx.parentNodeId,
+    branch: `${ctx.branch}-optimizer-fallback`,
+    tags: [...ctx.tags, "node-zero", "optimizer-fallback"],
+  });
+  nodes.push(passThroughNode);
+
+  return {
+    nodes,
+    edgeTypes: edges,
+    strategy: "hybrid",
+    nextSuggestedStrategy: "sequential",
+    reasoning: "PromptOptimizer failed, using pass-through mode",
+    optimizationOutput: {
+      inputAnalysis: {
+        ambiguityLevel: 0.5,
+        domainCategory: "general",
+        complexityScore: 5,
+      },
+      coreIntent: {
+        primaryGoal: input.originalPrompt,
+        successCriteria: ["Provide helpful response"],
+        desiredFormat: "structured_analysis",
+      },
+      missingContext: {
+        criticalGaps: [],
+        suggestedClarifications: [],
+      },
+      enhancedPrompt: {
+        superPrompt: input.originalPrompt,
+        reasoningStrategy: "sequential",
+        requiredCapabilities: ["analysis"],
+        outputSpecifications: {
+          format: "structured_analysis",
+          structure: ["Analysis", "Conclusion"],
+          depthLevel: "detailed",
+        },
+      },
+      routingRecommendation: {
+        primaryStrategy: "sequential",
+        suggestedNodes: [],
+        autoExecute: false,
+      },
+    },
   };
 }

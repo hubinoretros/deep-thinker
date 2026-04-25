@@ -477,3 +477,221 @@ export function metacognitiveReport(state: MetacognitiveState): string {
 
   return lines.join("\n");
 }
+
+// ============================================================================
+// Prompt Optimizer Router Integration (Node Zero)
+// ============================================================================
+
+export interface PromptOptimizationResult {
+  shouldOptimize: boolean;
+  reason: string;
+  optimized: boolean;
+  recommendation: {
+    primaryStrategy: Strategy;
+    suggestedNodes: string[];
+    autoExecute: boolean;
+  } | null;
+}
+
+/**
+ * Determines if a prompt should go through PromptOptimizer (Node Zero)
+ * before being routed to other reasoning strategies.
+ */
+export function shouldOptimizePrompt(
+  prompt: string,
+  conversationHistory?: Array<{ role: string; content: string }>
+): PromptOptimizationResult {
+  const trimmedPrompt = prompt.trim();
+  
+  // Skip optimization for very simple/short prompts
+  if (trimmedPrompt.length < 20) {
+    return {
+      shouldOptimize: false,
+      reason: "Prompt too short, direct routing to sequential",
+      optimized: false,
+      recommendation: {
+        primaryStrategy: "sequential",
+        suggestedNodes: [],
+        autoExecute: true,
+      },
+    };
+  }
+  
+  // Check for already-optimized prompts (avoid double optimization)
+  if (trimmedPrompt.includes("OPTIMIZED PROMPT") || 
+      trimmedPrompt.includes("SUPER PROMPT") ||
+      trimmedPrompt.includes("## Context") && trimmedPrompt.includes("## Requirements")) {
+    return {
+      shouldOptimize: false,
+      reason: "Prompt appears to be already optimized",
+      optimized: false,
+      recommendation: null,
+    };
+  }
+  
+  // Detect ambiguity indicators
+  const ambiguityIndicators = [
+    /\b(something|somehow|whatever|etc|\.\.\.|…)\b/gi,
+    /\b(maybe|perhaps|possibly)\b/gi,
+    /\?$/m, // Questions that need clarification
+    /\b(help|assist|advice)\b/gi,
+  ];
+  
+  const ambiguityScore = ambiguityIndicators.reduce((score, regex) => {
+    const matches = trimmedPrompt.match(regex);
+    return score + (matches ? matches.length * 0.2 : 0);
+  }, 0);
+  
+  // Detect complexity
+  const sentenceCount = trimmedPrompt.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+  const wordCount = trimmedPrompt.split(/\s+/).length;
+  const complexityScore = Math.min(1, (sentenceCount * 0.1) + (wordCount * 0.01));
+  
+  // Check if context is provided through conversation history
+  const hasContext = conversationHistory && conversationHistory.length > 1;
+  
+  // Decision logic
+  if (ambiguityScore > 0.4 || complexityScore > 0.6 || trimmedPrompt.length > 200) {
+    return {
+      shouldOptimize: true,
+      reason: `Optimization recommended: ambiguity=${ambiguityScore.toFixed(2)}, complexity=${complexityScore.toFixed(2)}, length=${trimmedPrompt.length}`,
+      optimized: false,
+      recommendation: null, // Will be filled after optimization
+    };
+  }
+  
+  return {
+    shouldOptimize: false,
+    reason: "Prompt is clear and concise, direct routing",
+    optimized: false,
+    recommendation: {
+      primaryStrategy: "sequential",
+      suggestedNodes: [],
+      autoExecute: true,
+    },
+  };
+}
+
+/**
+ * Routes the optimized prompt result to appropriate next steps
+ */
+export function routeOptimizedPrompt(
+  optimizationResult: {
+    primaryStrategy: Strategy;
+    suggestedNodes: string[];
+    autoExecute: boolean;
+  },
+  currentState: MetacognitiveState
+): MetacognitiveState {
+  // Update the metacognitive state based on optimization result
+  const switchRecord: StrategySwitch = {
+    from: currentState.currentStrategy,
+    to: optimizationResult.primaryStrategy,
+    reason: `PromptOptimizer (Node Zero) recommended: ${optimizationResult.suggestedNodes.join(", ")}`,
+    timestamp: Date.now(),
+  };
+  
+  return {
+    ...currentState,
+    currentStrategy: optimizationResult.primaryStrategy,
+    strategyHistory: [...currentState.strategyHistory, switchRecord],
+    stuckDetected: false,
+    stuckReason: null,
+    suggestedAction: {
+      type: optimizationResult.autoExecute ? "deepen" : "switch_strategy",
+      description: optimizationResult.autoExecute 
+        ? "Auto-executing optimized reasoning chain"
+        : "Review optimized prompt before proceeding",
+      suggestedStrategy: optimizationResult.primaryStrategy,
+    },
+    progressMetrics: {
+      ...currentState.progressMetrics,
+      stagnationSteps: 0,
+    },
+  };
+}
+
+/**
+ * Analyzes if user input is a direct command vs a reasoning request
+ * Commands skip optimization, reasoning requests go through Node Zero
+ */
+export function classifyUserIntent(prompt: string): {
+  type: "command" | "reasoning" | "optimization_needed";
+  confidence: number;
+} {
+  const lowerPrompt = prompt.toLowerCase().trim();
+  
+  // Direct commands that should skip optimization
+  const commandPatterns = [
+    /^(reset|clear|start over|new session)/i,
+    /^(evaluate|assess|score)/i,
+    /^(prune|optimize|visualize|show)/i,
+    /^(metacog|report|status)/i,
+  ];
+  
+  for (const pattern of commandPatterns) {
+    if (pattern.test(lowerPrompt)) {
+      return { type: "command", confidence: 0.9 };
+    }
+  }
+  
+  // Check if it looks like a reasoning/thinking request
+  const reasoningIndicators = [
+    /\b(why|how|what if|should|would|could|analyze|compare|evaluate|decide)\b/gi,
+    /\b(thinking|reasoning|approach|strategy|solution|problem)\b/gi,
+    /\?$/,
+  ];
+  
+  let reasoningScore = 0;
+  for (const indicator of reasoningIndicators) {
+    if (indicator.test(lowerPrompt)) {
+      reasoningScore += 0.25;
+    }
+  }
+  
+  if (reasoningScore > 0.4) {
+    // Check complexity to see if optimization is needed
+    const wordCount = lowerPrompt.split(/\s+/).length;
+    const hasMultipleQuestions = (lowerPrompt.match(/\?/g) || []).length > 1;
+    
+    if (wordCount > 30 || hasMultipleQuestions) {
+      return { type: "optimization_needed", confidence: reasoningScore };
+    }
+    
+    return { type: "reasoning", confidence: reasoningScore };
+  }
+  
+  return { type: "reasoning", confidence: 0.5 };
+}
+
+/**
+ * Creates initial Node Zero state for prompt optimization mode
+ */
+export function createNodeZeroState(): MetacognitiveState {
+  return {
+    currentStrategy: "hybrid", // Special mode for Node Zero
+    strategyHistory: [{
+      from: "sequential" as Strategy,
+      to: "hybrid" as Strategy,
+      reason: "Node Zero (PromptOptimizer) entry point",
+      timestamp: Date.now(),
+    }],
+    cognitiveLoad: 0.1,
+    stuckDetected: false,
+    stuckReason: null,
+    suggestedAction: {
+      type: "deepen",
+      description: "Analyzing and optimizing user prompt through Node Zero",
+    },
+    progressMetrics: {
+      totalThoughts: 0,
+      averageConfidence: 0.95,
+      confidenceTrend: "rising",
+      branchCount: 1,
+      maxDepth: 0,
+      contradictionCount: 0,
+      supportCount: 0,
+      stagnationSteps: 0,
+    },
+  };
+}

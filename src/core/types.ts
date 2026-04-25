@@ -37,7 +37,8 @@ export type Strategy =
   | "first_principles"
   | "counterfactual"
   | "systems_thinking"
-  | "mcts";
+  | "mcts"
+  | "hybrid"; // For PromptOptimizer routing recommendations
 
 export interface ThoughtNode {
   id: string;
@@ -165,6 +166,7 @@ export const STRATEGY_DESCRIPTIONS: Record<Strategy, string> = {
   counterfactual: "What-if analysis exploring alternative scenarios and ripple effects",
   systems_thinking: "Analyzing feedback loops, leverage points, and emergent properties",
   mcts: "Monte Carlo Tree Search for optimal decision path selection through simulation",
+  hybrid: "Combination of multiple strategies for complex, multi-faceted problems",
 };
 
 export const EDGE_TYPE_DESCRIPTIONS: Record<EdgeType, string> = {

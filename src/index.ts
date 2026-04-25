@@ -20,7 +20,9 @@ import {
   applyCounterfactual,
   applySystemsThinking,
   applyMCTS,
+  applyPromptOptimizer,
   type StrategyContext,
+  type PromptOptimizerResult,
 } from "./core/strategies.js";
 import {
   calculateConfidence,
@@ -37,6 +39,11 @@ import {
   shouldTriggerCounterfactual,
   shouldTriggerSystemsThinking,
   shouldTriggerMCTS,
+  shouldOptimizePrompt,
+  routeOptimizedPrompt,
+  classifyUserIntent,
+  createNodeZeroState,
+  type PromptOptimizationResult,
 } from "./core/metacog.js";
 import {
   integrateKnowledge,
@@ -59,6 +66,11 @@ import {
   STRATEGY_DESCRIPTIONS,
   EDGE_TYPE_DESCRIPTIONS,
 } from "./core/types.js";
+import {
+  PromptOptimizerInputSchema,
+  type PromptOptimizerInput,
+  type PromptOptimizerOutput,
+} from "./core/schemas.js";
 
 // Enhanced capabilities
 import { visualizeAsSVG, visualizeAsASCII } from "./enhancements/visualization.js";
@@ -587,6 +599,80 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["nodeId"],
       },
     },
+    {
+      name: "optimize_prompt",
+      description:
+        "Node Zero (PromptOptimizer): Transform vague/raw prompts into optimized Super Prompts with routing recommendations. Entry point for the reasoning DAG.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          originalPrompt: {
+            type: "string",
+            description: "User's raw, potentially vague or incomplete prompt",
+          },
+          userContext: {
+            type: "object",
+            properties: {
+              expertiseLevel: {
+                type: "string",
+                enum: ["novice", "intermediate", "expert"],
+                description: "User's expertise level",
+              },
+              domainKnowledge: {
+                type: "array",
+                items: { type: "string" },
+                description: "Known domains/topics",
+              },
+              preferences: {
+                type: "object",
+                properties: {
+                  verbosity: {
+                    type: "string",
+                    enum: ["concise", "balanced", "verbose"],
+                  },
+                  technicalDepth: {
+                    type: "string",
+                    enum: ["high_level", "moderate", "deep"],
+                  },
+                  includeCode: {
+                    type: "boolean",
+                  },
+                },
+              },
+            },
+          },
+          conversationHistory: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                role: { type: "string", enum: ["user", "assistant", "system"] },
+                content: { type: "string" },
+              },
+            },
+            description: "Previous messages for context (max 20)",
+          },
+          optimizationLevel: {
+            type: "string",
+            enum: ["light", "standard", "aggressive"],
+            description: "How aggressively to optimize the prompt",
+            default: "standard",
+          },
+          targetModel: {
+            type: "string",
+            enum: ["claude", "gpt4", "gpt35", "local", "generic"],
+            description: "Target LLM for prompt tailoring",
+            default: "generic",
+          },
+          autoRoute: {
+            type: "boolean",
+            description: "Automatically route to recommended strategy after optimization",
+            default: false,
+          },
+        },
+        required: ["originalPrompt"],
+      },
+    },
   ],
 }));
 
@@ -624,6 +710,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return handleExplainDecision(args);
       case "social_impact_analysis":
         return handleSocialImpactAnalysis(args);
+      case "optimize_prompt":
+        return handleOptimizePrompt(args);
       default:
         return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
@@ -1553,6 +1641,209 @@ function handleSocialImpactAnalysis(args: Record<string, unknown>) {
       isError: true,
     };
   }
+}
+
+// ============================================================================
+// Prompt Optimizer (Node Zero) Handler
+// ============================================================================
+
+function handleOptimizePrompt(args: Record<string, unknown>) {
+  const originalPrompt = args.originalPrompt as string;
+  const userContext = args.userContext as PromptOptimizerInput["userContext"] || {};
+  const conversationHistory = args.conversationHistory as PromptOptimizerInput["conversationHistory"];
+  const optimizationLevel = (args.optimizationLevel as string) || "standard";
+  const targetModel = (args.targetModel as string) || "generic";
+  const autoRoute = (args.autoRoute as boolean) || false;
+
+  if (!originalPrompt || originalPrompt.trim().length === 0) {
+    return { content: [{ type: "text", text: "Must specify originalPrompt" }], isError: true };
+  }
+
+  try {
+    // Step 1: Check if optimization is needed
+    const optimizationCheck = shouldOptimizePrompt(originalPrompt, conversationHistory);
+    
+    if (!optimizationCheck.shouldOptimize) {
+      return {
+        content: [{
+          type: "text",
+          text: [
+            `=== Prompt Optimizer (Node Zero) ===`,
+            ``,
+            `Status: SKIP - ${optimizationCheck.reason}`,
+            ``,
+            `Recommendation:`,
+            `  Strategy: ${optimizationCheck.recommendation?.primaryStrategy}`,
+            `  Auto-Execute: ${optimizationCheck.recommendation?.autoExecute}`,
+            ``,
+            `Original prompt is clear enough for direct processing.`,
+          ].join("\n"),
+        }],
+      };
+    }
+
+    // Step 2: Create Node Zero state
+    metaState = createNodeZeroState();
+
+    // Step 3: Build input
+    const input: PromptOptimizerInput = {
+      originalPrompt: originalPrompt.trim(),
+      userContext,
+      conversationHistory,
+      optimizationLevel: optimizationLevel as PromptOptimizerInput["optimizationLevel"],
+      targetModel: targetModel as PromptOptimizerInput["targetModel"],
+    };
+
+    // Step 4: Apply PromptOptimizer
+    const ctx: StrategyContext = {
+      graph,
+      currentStrategy: "hybrid" as Strategy,
+      problem: originalPrompt,
+      parentNodeId: null,
+      branch: "node-zero",
+      tags: ["prompt-optimizer", "entry-point"],
+    };
+
+    const result = applyPromptOptimizer(ctx, input);
+
+    // Step 5: Add nodes to graph
+    for (const node of result.nodes) {
+      graph.addNode(node);
+    }
+
+    for (const edge of result.edgeTypes) {
+      const fromNode = graph.getNode(edge.from);
+      if (fromNode) {
+        addEdge(fromNode, edge.to, edge.type);
+      }
+    }
+
+    // Step 6: Route based on optimization result
+    if (result.optimizationOutput.routingRecommendation) {
+      metaState = routeOptimizedPrompt(
+        result.optimizationOutput.routingRecommendation,
+        metaState
+      );
+    }
+
+    // Step 7: Auto-route if requested
+    let autoRouteResult = "";
+    if (autoRoute && result.optimizationOutput.routingRecommendation?.autoExecute) {
+      const routing = result.optimizationOutput.routingRecommendation;
+      autoRouteResult = `\n\n🚦 AUTO-ROUTING ACTIVATED\n  → Next strategy: ${routing.primaryStrategy}\n  → Suggested nodes: ${routing.suggestedNodes.join(", ") || "None"}`;
+    }
+
+    // Build output
+    const opt = result.optimizationOutput;
+    const lines: string[] = [
+      `=== Prompt Optimizer (Node Zero) v2.0 ===`,
+      ``,
+      `📊 INPUT ANALYSIS`,
+      `  Domain: ${opt.inputAnalysis.domainCategory}`,
+      `  Complexity: ${opt.inputAnalysis.complexityScore}/10`,
+      `  Ambiguity: ${(opt.inputAnalysis.ambiguityLevel * 100).toFixed(0)}%`,
+      ``,
+      `🎯 CORE INTENT`,
+      `  Primary Goal: ${opt.coreIntent.primaryGoal}`,
+      `  Format: ${opt.coreIntent.desiredFormat}`,
+      `  Success Criteria:`,
+      ...opt.coreIntent.successCriteria.map(c => `    • ${c}`),
+      ``,
+    ];
+
+    if (opt.missingContext.criticalGaps.length > 0) {
+      lines.push(`⚠️  MISSING CONTEXT`);
+      opt.missingContext.criticalGaps.forEach((gap, i) => {
+        lines.push(`  ${i + 1}. ${gap.gap}`);
+        lines.push(`     Why it matters: ${gap.whyItMatters}`);
+      });
+      lines.push(``);
+    }
+
+    if (opt.missingContext.suggestedClarifications.length > 0) {
+      lines.push(`💡 SUGGESTED CLARIFICATIONS`);
+      opt.missingContext.suggestedClarifications.forEach((clar, i) => {
+        lines.push(`  ${i + 1}. [${clar.priority.toUpperCase()}] ${clar.question}`);
+      });
+      lines.push(``);
+    }
+
+    lines.push(
+      `✨ SUPER PROMPT (Optimized)`,
+      `  Strategy: ${opt.enhancedPrompt.reasoningStrategy}`,
+      `  Capabilities: ${opt.enhancedPrompt.requiredCapabilities.join(", ")}`,
+      `  Depth: ${opt.enhancedPrompt.outputSpecifications.depthLevel}`,
+      `  Structure: ${opt.enhancedPrompt.outputSpecifications.structure.join(" → ")}`,
+      ``,
+      `--- BEGIN SUPER PROMPT ---`,
+      opt.enhancedPrompt.superPrompt,
+      `--- END SUPER PROMPT ---`,
+      ``,
+      `🚦 ROUTING RECOMMENDATION`,
+      `  Primary Strategy: ${opt.routingRecommendation.primaryStrategy}`,
+      `  Suggested Nodes: ${opt.routingRecommendation.suggestedNodes.join(", ") || "None"}`,
+      `  Auto-Execute: ${opt.routingRecommendation.autoExecute}`,
+      ``,
+      `📈 METRICS`,
+      `  Optimization Score: ${(opt.enhancedPrompt.superPrompt.length / originalPrompt.length).toFixed(2)}x expansion`,
+      `  Nodes Created: ${result.nodes.length}`,
+      `  Confidence: ${(result.nodes[result.nodes.length - 1]?.confidence * 100 || 0).toFixed(0)}%`
+    );
+
+    if (autoRouteResult) {
+      lines.push(autoRouteResult);
+    }
+
+    lines.push(
+      ``,
+      `💡 TIP: Use this super prompt with 'think' tool and strategy '${opt.routingRecommendation.primaryStrategy}'`
+    );
+
+    return {
+      content: [{
+        type: "text",
+        text: lines.join("\n"),
+      }],
+    };
+
+  } catch (error) {
+    return {
+      content: [{
+        type: "text",
+        text: `Prompt optimization error: ${error instanceof Error ? error.message : String(error)}`,
+      }],
+      isError: true,
+    };
+  }
+}
+
+// ============================================================================
+// Auto-Optimization Middleware (Optional)
+// ============================================================================
+
+/**
+ * Automatically runs prompt optimization on the first 'think' call
+ * if the prompt appears to need optimization.
+ */
+let hasRunInitialOptimization = false;
+
+function maybeAutoOptimize(prompt: string): string {
+  // Only auto-optimize on first call and if enabled
+  if (hasRunInitialOptimization) {
+    return prompt;
+  }
+  
+  hasRunInitialOptimization = true;
+  
+  const classification = classifyUserIntent(prompt);
+  
+  if (classification.type === "optimization_needed" && classification.confidence > 0.5) {
+    // Could trigger auto-optimization here
+    // For now, just log the classification
+    console.error(`[Auto-Optimize] Prompt classified as needing optimization (confidence: ${classification.confidence.toFixed(2)})`);
+  }
+  
+  return prompt;
 }
 
 async function main() {

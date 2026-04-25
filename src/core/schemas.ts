@@ -352,6 +352,198 @@ export const FallbackStrategySchema = z.object({
 });
 
 // ============================================================================
+// Prompt Optimizer Node Schemas (Node Zero - Entry Point)
+// ============================================================================
+
+export const PromptAnalysisSchema = z.object({
+  ambiguityLevel: z.number().min(0).max(1).describe("How ambiguous/vague the original prompt is"),
+  domainCategory: z.enum([
+    "technical",
+    "creative",
+    "analytical",
+    "strategic",
+    "scientific",
+    "business",
+    "general",
+  ]).describe("Detected domain category of the prompt"),
+  complexityScore: z.number().min(1).max(10).describe("Estimated complexity 1-10"),
+  urgencyIndicators: z.array(z.string()).default([]).describe("Words indicating time sensitivity"),
+  constraintMentions: z.array(z.string()).default([]).describe("Explicit constraints mentioned"),
+});
+
+export const CoreIntentSchema = z.object({
+  primaryGoal: z.string().min(1).describe("The single main objective user wants to achieve"),
+  secondaryGoals: z.array(z.string()).default([]).describe("Additional desirable outcomes"),
+  successCriteria: z.array(z.string()).min(1).describe("Measurable criteria for success"),
+  targetAudience: z.string().optional().describe("Who the output is for"),
+  desiredFormat: z.enum([
+    "structured_analysis",
+    "step_by_step_guide",
+    "comparative_evaluation",
+    "creative_proposal",
+    "technical_specification",
+    "decision_recommendation",
+    "explanation",
+    "code",
+    "json",
+    "markdown",
+    "free_form",
+  ]).default("structured_analysis").describe("Expected output format"),
+});
+
+export const MissingContextSchema = z.object({
+  criticalGaps: z.array(z.object({
+    gap: z.string().describe("What's missing"),
+    whyItMatters: z.string().describe("Why this gap hurts output quality"),
+    assumptionMade: z.string().describe("What we'll assume if not provided"),
+  })).default([]),
+  
+  suggestedClarifications: z.array(z.object({
+    question: z.string().describe("Question to ask user"),
+    priority: z.enum(["high", "medium", "low"]).describe("How critical is this clarification"),
+    impact: z.string().describe("How the answer would improve output"),
+  })).default([]),
+  
+  implicitAssumptions: z.array(z.object({
+    assumption: z.string().describe("What we're assuming"),
+    riskIfWrong: z.string().describe("Risk if assumption is incorrect"),
+    confidence: z.number().min(0).max(1).describe("Confidence in this assumption"),
+  })).default([]),
+});
+
+export const EnhancedPromptSchema = z.object({
+  superPrompt: z.string().min(50).describe("The enhanced, detailed, professional prompt for downstream nodes"),
+  
+  reasoningStrategy: z.enum([
+    "sequential",
+    "dialectic",
+    "parallel",
+    "analogical",
+    "abductive",
+    "first_principles",
+    "counterfactual",
+    "systems_thinking",
+    "mcts",
+    "hybrid",
+  ]).describe("Recommended primary reasoning strategy"),
+  
+  strategyRationale: z.string().describe("Why this strategy fits the problem"),
+  
+  requiredCapabilities: z.array(z.enum([
+    "analysis",
+    "synthesis",
+    "evaluation",
+    "creation",
+    "comparison",
+    "prediction",
+    "optimization",
+    "debugging",
+  ])).default([]).describe("Cognitive capabilities needed"),
+  
+  suggestedChain: z.array(z.object({
+    step: z.number().int().positive(),
+    action: z.string().describe("What to do in this step"),
+    strategy: z.enum([
+      "sequential",
+      "dialectic", 
+      "parallel",
+      "analogical",
+      "abductive",
+      "first_principles",
+      "counterfactual",
+      "systems_thinking",
+      "mcts",
+    ]),
+    purpose: z.string().describe("Why this step matters"),
+  })).optional().describe("Suggested chain of reasoning steps"),
+  
+  outputSpecifications: z.object({
+    format: z.string().describe("Output format"),
+    structure: z.array(z.string()).describe("Sections/parts expected"),
+    depthLevel: z.enum(["high_level", "detailed", "exhaustive"]).default("detailed"),
+    includeExamples: z.boolean().default(false),
+    includeEdgeCases: z.boolean().default(true),
+  }),
+});
+
+export const PromptOptimizerInputSchema = z.object({
+  originalPrompt: z.string().min(1).max(10000).describe("User's raw, potentially vague input"),
+  
+  userContext: z.object({
+    expertiseLevel: z.enum(["novice", "intermediate", "expert"]).default("intermediate"),
+    domainKnowledge: z.array(z.string()).default([]).describe("Known domains/topics"),
+    preferences: z.object({
+      verbosity: z.enum(["concise", "balanced", "verbose"]).default("balanced"),
+      technicalDepth: z.enum(["high_level", "moderate", "deep"]).default("moderate"),
+      includeCode: z.boolean().default(false),
+    }).default({}),
+  }).default({}),
+  
+  conversationHistory: z.array(z.object({
+    role: z.enum(["user", "assistant", "system"]),
+    content: z.string(),
+    timestamp: z.number().optional(),
+  })).max(20).optional().describe("Previous messages for context continuity"),
+  
+  optimizationLevel: z.enum(["light", "standard", "aggressive"]).default("standard"),
+  
+  targetModel: z.enum([
+    "claude",
+    "gpt4",
+    "gpt35",
+    "local",
+    "generic",
+  ]).default("generic").describe("Target LLM for prompt tailoring"),
+});
+
+export const PromptOptimizerOutputSchema = z.object({
+  version: z.literal("2.0.0").describe("Schema version"),
+  
+  inputAnalysis: PromptAnalysisSchema.describe("Analysis of original prompt quality"),
+  
+  coreIntent: CoreIntentSchema.describe("Extracted fundamental objectives"),
+  
+  missingContext: MissingContextSchema.describe("Identified gaps and assumptions"),
+  
+  enhancedPrompt: EnhancedPromptSchema.describe("The optimized super prompt"),
+  
+  metadata: z.object({
+    processingTime: z.number().describe("Processing time in ms"),
+    optimizationScore: z.number().min(0).max(1).describe("Quality improvement score"),
+    expansionRatio: z.number().describe("How much prompt was expanded (length ratio)"),
+    confidence: z.number().min(0).max(1).describe("Confidence in optimization quality"),
+  }),
+  
+  routingRecommendation: z.object({
+    primaryStrategy: z.enum([
+      "sequential",
+      "dialectic",
+      "parallel", 
+      "analogical",
+      "abductive",
+      "first_principles",
+      "counterfactual",
+      "systems_thinking",
+      "mcts",
+    ]),
+    fallbackStrategy: z.enum([
+      "sequential",
+      "parallel",
+      "abductive",
+    ]).default("sequential"),
+    suggestedNodes: z.array(z.enum([
+      "FirstPrinciplesNode",
+      "CounterfactualNode",
+      "SystemsThinkingNode",
+      "MCTSNode",
+      "DialecticNode",
+      "AbductiveNode",
+    ])).describe("Which specialized nodes to activate"),
+    autoExecute: z.boolean().default(false).describe("Whether to auto-start reasoning chain"),
+  }),
+});
+
+// ============================================================================
 // Type Exports
 // ============================================================================
 
@@ -374,3 +566,10 @@ export type MCTSOutput = z.infer<typeof MCTSOutputSchema>;
 
 export type NodeError = z.infer<typeof NodeErrorSchema>;
 export type FallbackStrategy = z.infer<typeof FallbackStrategySchema>;
+
+export type PromptOptimizerInput = z.infer<typeof PromptOptimizerInputSchema>;
+export type PromptOptimizerOutput = z.infer<typeof PromptOptimizerOutputSchema>;
+export type PromptAnalysis = z.infer<typeof PromptAnalysisSchema>;
+export type CoreIntent = z.infer<typeof CoreIntentSchema>;
+export type MissingContext = z.infer<typeof MissingContextSchema>;
+export type EnhancedPrompt = z.infer<typeof EnhancedPromptSchema>;

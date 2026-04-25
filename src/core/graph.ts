@@ -244,6 +244,7 @@ export class ThoughtGraph {
       counterfactual: 0,
       systems_thinking: 0,
       mcts: 0,
+      hybrid: 0,
     };
     const typeDist: Record<ThoughtType, number> = {
       hypothesis: 0,

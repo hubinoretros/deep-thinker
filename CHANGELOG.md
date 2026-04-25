@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-04-25
+
+### ✨ New Feature: PromptOptimizerNode (Node Zero)
+
+**The Entry Point for the Reasoning DAG**
+
+Transform vague/incomplete prompts into optimized Super Prompts before routing to specialized strategies.
+
+#### Features:
+- **Input Analysis**: Detects domain, complexity, ambiguity level
+- **Core Intent Extraction**: Identifies primary goals and success criteria
+- **Missing Context Detection**: Finds gaps and suggests clarifications
+- **Super Prompt Generation**: Creates detailed, structured prompts
+- **Smart Routing**: Recommends optimal reasoning strategy chain
+
+#### Usage:
+```typescript
+optimize_prompt: {
+  originalPrompt: "How to improve our API?",
+  optimizationLevel: "standard",
+  autoRoute: true
+}
+```
+
+#### Output:
+- 📊 Input Analysis (domain, complexity, ambiguity)
+- 🎯 Core Intent (goals, success criteria, format)
+- ⚠️ Missing Context (gaps, assumptions)
+- ✨ Super Prompt (fully optimized for downstream nodes)
+- 🚦 Routing Recommendation (which strategies to use)
+
+---
+
 ## [2.0.0] - 2026-04-25
 
 ### 🚀 Major Release - Enhanced Reasoning Strategies
