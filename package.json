@@ -1,6 +1,6 @@
 {
   "name": "deep-thinker",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Advanced cognitive thinking MCP with DAG-based thought graph, 10 reasoning strategies, node aliases, session persistence, structured responses, auto strategy selection, and 17 tools with help & conclude",
   "type": "module",
   "bin": {
