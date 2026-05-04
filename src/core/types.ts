@@ -38,7 +38,8 @@ export type Strategy =
   | "counterfactual"
   | "systems_thinking"
   | "mcts"
-  | "hybrid"; // For PromptOptimizer routing recommendations
+  | "hybrid"
+  | "auto"; // For PromptOptimizer routing recommendations
 
 export interface ThoughtNode {
   id: string;
@@ -167,6 +168,7 @@ export const STRATEGY_DESCRIPTIONS: Record<Strategy, string> = {
   systems_thinking: "Analyzing feedback loops, leverage points, and emergent properties",
   mcts: "Monte Carlo Tree Search for optimal decision path selection through simulation",
   hybrid: "Combination of multiple strategies for complex, multi-faceted problems",
+  auto: "Automatically select the best strategy based on content and graph context",
 };
 
 export const EDGE_TYPE_DESCRIPTIONS: Record<EdgeType, string> = {
@@ -224,6 +226,22 @@ export interface SocialImpactAnalysis {
 }
 
 export type LanguageCode = "en" | "tr" | "de" | "fr" | "es" | "jp" | "zh" | "ru";
+
+export interface NextAction {
+  tool: string;
+  params?: Record<string, unknown>;
+  reason: string;
+}
+
+export interface MCPResponse {
+  status: "ok" | "error" | "warning";
+  nodeId?: string;
+  summary: string;
+  confidence?: number;
+  data?: Record<string, unknown>;
+  nextSuggested?: NextAction;
+  warnings?: string[];
+}
 
 // Enhanced ThoughtNode with high-IQ capabilities
 export interface EnhancedThoughtNode extends ThoughtNode {

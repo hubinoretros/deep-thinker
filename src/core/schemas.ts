@@ -32,6 +32,7 @@ export const StrategySchema = z.enum([
   "counterfactual",
   "systems_thinking",
   "mcts",
+  "auto",
 ]);
 
 export const EdgeTypeSchema = z.enum([

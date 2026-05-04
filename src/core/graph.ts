@@ -245,6 +245,7 @@ export class ThoughtGraph {
       systems_thinking: 0,
       mcts: 0,
       hybrid: 0,
+      auto: 0,
     };
     const typeDist: Record<ThoughtType, number> = {
       hypothesis: 0,
@@ -355,5 +356,69 @@ export class ThoughtGraph {
 
   private _truncate(str: string, maxLen: number): string {
     return str.length > maxLen ? str.substring(0, maxLen) + "..." : str;
+  }
+
+  hasIncomingEdges(id: string): boolean {
+    for (const node of this.nodes.values()) {
+      if (node.childIds.includes(id)) return true;
+      if (node.edges.some(e => e.targetId === id)) return true;
+    }
+    if (this.rootIds.includes(id)) return false;
+    for (const node of this.nodes.values()) {
+      if (node.parentId === id) return true;
+    }
+    return false;
+  }
+
+  resolveNodeId(alias: string): string | null {
+    if (alias === "last") {
+      const ids = Array.from(this.nodes.keys());
+      return ids.length > 0 ? ids[ids.length - 1] : null;
+    }
+    if (alias === "best") {
+      let bestId: string | null = null;
+      let bestConf = -1;
+      for (const [id, node] of this.nodes) {
+        if (node.confidence > bestConf) {
+          bestConf = node.confidence;
+          bestId = id;
+        }
+      }
+      return bestId;
+    }
+    if (alias === "root") {
+      for (const [id] of this.nodes) {
+        if (!this.hasIncomingEdges(id)) return id;
+      }
+      return null;
+    }
+    return this.nodes.has(alias) ? alias : null;
+  }
+
+  getContext(): { nodeCount: number; avgConfidence: number; recentStrategies: string[] } {
+    const allNodes = Array.from(this.nodes.values());
+    const activeNodes = allNodes.filter(n => n.status === "active");
+    const avgConfidence = activeNodes.length > 0
+      ? activeNodes.reduce((sum, n) => sum + n.confidence, 0) / activeNodes.length
+      : 0;
+    const recentStrategies = allNodes
+      .sort((a, b) => a.metadata.createdAt - b.metadata.createdAt)
+      .slice(-5)
+      .map(n => n.strategy);
+    return {
+      nodeCount: allNodes.length,
+      avgConfidence,
+      recentStrategies,
+    };
+  }
+
+  size(): number {
+    return this.nodes.size;
+  }
+
+  deserialize(data: { nodes: [string, ThoughtNode][]; rootIds: string[]; branches: string[] }): void {
+    this.nodes = new Map(data.nodes);
+    this.rootIds = data.rootIds;
+    this.branches = new Set(data.branches);
   }
 }

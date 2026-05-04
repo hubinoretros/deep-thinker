@@ -1,7 +1,7 @@
 {
   "name": "deep-thinker",
-  "version": "2.1.0",
-  "description": "Advanced cognitive thinking MCP with DAG-based thought graph, 9 reasoning strategies including First Principles, Counterfactual, Systems Thinking & MCTS, metacognition, and high-IQ reasoning enhancements",
+  "version": "3.0.0",
+  "description": "Advanced cognitive thinking MCP with DAG-based thought graph, 10 reasoning strategies, node aliases, session persistence, structured responses, auto strategy selection, and 17 tools with help & conclude",
   "type": "module",
   "bin": {
     "deep-thinker": "./dist/index.js"

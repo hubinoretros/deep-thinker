@@ -1655,3 +1655,40 @@ function _createPromptOptimizerFallback(
     },
   };
 }
+
+export function selectStrategy(
+  content: string,
+  graphContext: { nodeCount: number; avgConfidence: number; recentStrategies: string[] }
+): Strategy {
+  const lower = content.toLowerCase();
+
+  if (lower.includes("neden") || lower.includes("why") || lower.includes("nasıl") || lower.includes("how")) {
+    return "abductive";
+  }
+  if (lower.includes("eğer") || lower.includes("if") || lower.includes("varsayalım") || lower.includes("what if")) {
+    return "counterfactual";
+  }
+  if (lower.includes("vs") || lower.includes("veya") || lower.includes("karşılaştır") || lower.includes("compare")) {
+    return "dialectic";
+  }
+  if (lower.includes("sistem") || lower.includes("system") || lower.includes("döngü") || lower.includes("loop")) {
+    return "systems_thinking";
+  }
+  if (lower.includes("temel") || lower.includes("fundamental") || lower.includes("varsayım") || lower.includes("assumption")) {
+    return "first_principles";
+  }
+
+  if (graphContext.avgConfidence < 0.4 && graphContext.nodeCount > 3) {
+    return "parallel";
+  }
+  if (graphContext.nodeCount === 0) {
+    return "sequential";
+  }
+
+  const last = graphContext.recentStrategies[graphContext.recentStrategies.length - 1];
+  if (last === "sequential" && graphContext.nodeCount > 4) {
+    return "dialectic";
+  }
+
+  return "sequential";
+}

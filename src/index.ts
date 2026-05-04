@@ -21,6 +21,7 @@ import {
   applySystemsThinking,
   applyMCTS,
   applyPromptOptimizer,
+  selectStrategy,
   type StrategyContext,
   type PromptOptimizerResult,
 } from "./core/strategies.js";
@@ -65,6 +66,8 @@ import {
   THOUGHT_TYPE_DESCRIPTIONS,
   STRATEGY_DESCRIPTIONS,
   EDGE_TYPE_DESCRIPTIONS,
+  MCPResponse,
+  NextAction,
 } from "./core/types.js";
 import {
   PromptOptimizerInputSchema,
@@ -81,6 +84,11 @@ import { evaluateEthically, applyEthicalEvaluation } from "./enhancements/ethica
 import { analyzeEmotionalIntelligence } from "./enhancements/emotional_intelligence.js";
 import { explainDecision, formatExplanation } from "./enhancements/explanation.js";
 import { analyzeSocialImpact } from "./enhancements/social_impact.js";
+import { SessionManager } from "./core/session.js";
+import { formatZodError, formatUnknownError } from "./core/errors.js";
+import { ZodError } from "zod";
+
+const sessionManager = new SessionManager();
 
 const graph = new ThoughtGraph();
 let metaState = createMetacognitiveState("sequential");
@@ -118,8 +126,8 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
           },
           strategy: {
             type: "string",
-            enum: ["sequential", "dialectic", "parallel", "analogical", "abductive", "first_principles", "counterfactual", "systems_thinking", "mcts"],
-            description: "Reasoning strategy to use (default: current strategy from metacognition). New strategies: first_principles=deconstruct to fundamentals, counterfactual=what-if analysis, systems_thinking=feedback loops & leverage points, mcts=Monte Carlo tree search for optimization",
+            enum: ["sequential", "dialectic", "parallel", "analogical", "abductive", "first_principles", "counterfactual", "systems_thinking", "mcts", "auto"],
+            description: "Reasoning strategy to use (default: current strategy from metacognition). Use 'auto' for automatic strategy selection. New strategies: first_principles=deconstruct to fundamentals, counterfactual=what-if analysis, systems_thinking=feedback loops & leverage points, mcts=Monte Carlo tree search for optimization",
           },
           confidence: {
             type: "number",
@@ -400,13 +408,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "reset",
       description:
-        "Reset the thought graph and metacognitive state. Start a fresh reasoning session.",
+        "Reset the thought graph and metacognitive state. Start a fresh reasoning session, save current session, or resume a saved session.",
       inputSchema: {
         type: "object",
         properties: {
           problem: {
             type: "string",
             description: "New problem statement for this session",
+          },
+          save: {
+            type: "boolean",
+            description: "Save current session before resetting (default: false)",
+          },
+          saveName: {
+            type: "string",
+            description: "Name for saved session (required if save: true)",
+          },
+          resume: {
+            type: "string",
+            description: "Resume a previously saved session by name",
+          },
+          listSessions: {
+            type: "boolean",
+            description: "List all saved sessions",
           },
         },
       },
@@ -673,6 +697,43 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["originalPrompt"],
       },
     },
+    {
+      name: "help",
+      description: "Discover deep-thinker tools and learn usage workflows. Shows tools grouped by category with quick-start examples.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          category: {
+            type: "string",
+            enum: ["all", "core", "advanced", "workflow"],
+            description: "Category to display (default: all)",
+          },
+        },
+      },
+    },
+    {
+      name: "conclude",
+      description: "Analyze the entire thought graph and produce a comprehensive summary-conclusion with action items and graph health report.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          detailLevel: {
+            type: "string",
+            enum: ["brief", "detailed", "technical"],
+            description: "Summary detail level (default: detailed)",
+          },
+          includeCounterfactuals: {
+            type: "boolean",
+            description: "Include counterfactual analysis (default: false)",
+          },
+          format: {
+            type: "string",
+            enum: ["prose", "structured", "executive"],
+            description: "Output format (default: structured)",
+          },
+        },
+      },
+    },
   ],
 }));
 
@@ -712,12 +773,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return handleSocialImpactAnalysis(args);
       case "optimize_prompt":
         return handleOptimizePrompt(args);
+      case "help":
+        return handleHelp(args);
+      case "conclude":
+        return handleConclude(args);
       default:
         return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
   } catch (error) {
+    if (error instanceof ZodError) {
+      const friendly = formatZodError(error, toolName);
+      return {
+        content: [{ type: "text", text: JSON.stringify(friendly, null, 2) }],
+        isError: true,
+      };
+    }
+    const friendly = formatUnknownError(error, toolName);
     return {
-      content: [{ type: "text", text: `Error: ${error instanceof Error ? error.message : String(error)}` }],
+      content: [{ type: "text", text: JSON.stringify(friendly, null, 2) }],
       isError: true,
     };
   }
@@ -732,12 +805,35 @@ function _getLastLeafId(): string | null {
   return leaves[leaves.length > 1 ? leaves.length - 1 : 0].id;
 }
 
+function _resolveNodeId(rawId: string): string | null {
+  return graph.resolveNodeId(rawId);
+}
+
+function _nodeNotFoundResponse(rawId: string) {
+  return {
+    content: [{
+      type: "text" as const,
+      text: JSON.stringify({
+        status: "error",
+        error: "NODE_NOT_FOUND",
+        provided: rawId,
+        hint: 'Geçerli alias\'lar: "last", "best", "root" veya graph aracıyla node ID alın',
+      }),
+    }],
+    isError: true,
+  };
+}
+
 function handleThink(args: Record<string, unknown>) {
   const content = args.content as string;
-  const strategy = (args.strategy as Strategy) || metaState.currentStrategy;
+  const rawStrategy = (args.strategy as Strategy) || metaState.currentStrategy;
+  const strategy: Strategy = (rawStrategy === "auto" || rawStrategy === undefined)
+    ? selectStrategy(content, graph.getContext())
+    : rawStrategy;
   const type = (args.type as ThoughtType) || "analysis";
   const confidence = (args.confidence as number) ?? 0.5;
-  const parentId = (args.parentId as string) || (args.parentId === undefined ? _getLastLeafId() : null);
+  const rawParentId = args.parentId as string | undefined;
+  const parentId = rawParentId ? (_resolveNodeId(rawParentId) || rawParentId) : (args.parentId === undefined ? _getLastLeafId() : null);
   const branch = (args.branch as string) || "main";
   const tags = (args.tags as string[]) || [];
   const edgeTo = args.edgeTo as { targetId: string; type: EdgeType } | undefined;
@@ -900,126 +996,156 @@ function handleThink(args: Record<string, unknown>) {
 
   metaState = updateMetacognition(metaState, graph);
 
-  const lines: string[] = [
-    `✦ Thought added: ${mainNode.id}`,
-    `  Strategy: ${result.strategy} | Type: ${mainNode.type} | Confidence: ${mainNode.confidence.toFixed(2)}`,
-    `  Reasoning: ${result.reasoning}`,
-    `  Nodes created: ${result.nodes.length}`,
-  ];
-
+  const warnings: string[] = [];
   if (metaState.stuckDetected) {
-    lines.push("");
-    lines.push(`⚠ Stuck detected: ${metaState.stuckReason}`);
+    warnings.push(`Stuck detected: ${metaState.stuckReason}`);
   }
 
-  // Check for specialized strategy recommendations
   const allNodes = graph.getAllNodes();
   const specializedRec = recommendSpecializedStrategy(metaState.progressMetrics, allNodes, metaState.currentStrategy);
-  
+
+  let nextSuggested: NextAction;
+  if (mainNode.confidence < 0.4) {
+    nextSuggested = { tool: "evaluate", params: { critique: true }, reason: "Düşük confidence — değerlendirme önerilir" };
+  } else if (graph.size() % 5 === 0) {
+    nextSuggested = { tool: "metacog", params: { action: "auto_update" }, reason: "Her 5 düşüncede bir metacognitive kontrol önerilir" };
+  } else if (metaState.suggestedAction) {
+    nextSuggested = { tool: metaState.suggestedAction.type === "switch_strategy" ? "metacog" : metaState.suggestedAction.type, reason: metaState.suggestedAction.description };
+  } else {
+    nextSuggested = { tool: "think", reason: "Akıl yürütmeye devam et" };
+  }
+
   if (specializedRec) {
-    lines.push(`🎯 Specialized Strategy Detected: ${specializedRec.strategy}`);
-    lines.push(`   Reason: ${specializedRec.reason}`);
+    warnings.push(`Specialized Strategy Detected: ${specializedRec.strategy} — ${specializedRec.reason}`);
   }
 
-  if (metaState.suggestedAction) {
-    lines.push(`💡 Suggested: [${metaState.suggestedAction.type}] ${metaState.suggestedAction.description}`);
-    if (metaState.suggestedAction.suggestedStrategy) {
-      lines.push(`   → Try strategy: ${metaState.suggestedAction.suggestedStrategy}`);
-    }
-  }
+  const response: MCPResponse = {
+    status: warnings.length > 0 ? "warning" : "ok",
+    nodeId: mainNode.id,
+    summary: `${result.strategy} stratejisiyle "${content.substring(0, 60)}${content.length > 60 ? "..." : ""}" eklendi`,
+    confidence: mainNode.confidence,
+    data: {
+      thoughtType: mainNode.type,
+      edgeCount: mainNode.edges.length,
+      branchName: branch ?? null,
+      nodesCreated: result.nodes.length,
+      reasoning: result.reasoning,
+    },
+    nextSuggested,
+    warnings: warnings.length > 0 ? warnings : undefined,
+  };
 
-  if (result.nextSuggestedStrategy) {
-    lines.push(`📋 Next step: Continue with ${result.nextSuggestedStrategy} strategy`);
-  }
+  sessionManager.autoSave(graph.serialize(), problemStatement ?? undefined);
 
-  return { content: [{ type: "text", text: lines.join("\n") }] };
+  return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
 }
 
 function handleEvaluate(args: Record<string, unknown>) {
-  const nodeId = args.nodeId as string | undefined;
+  const rawNodeId = args.nodeId as string | undefined;
   const doCritique = (args.critique as boolean) ?? true;
   const doFindGaps = (args.findGaps as boolean) ?? false;
   const doValidate = (args.validateKnowledge as boolean) ?? false;
 
-  const lines: string[] = ["=== Evaluation Report ==="];
+  const lines: string[] = [];
 
-  if (nodeId) {
+  if (rawNodeId) {
+    const nodeId = _resolveNodeId(rawNodeId);
+    if (!nodeId) {
+      return _nodeNotFoundResponse(rawNodeId);
+    }
     const node = graph.getNode(nodeId);
     if (!node) {
       return { content: [{ type: "text", text: `Node ${nodeId} not found` }], isError: true };
     }
 
     const score = calculateConfidence(node, graph, graph.getAllNodes());
-    lines.push(`Node: ${nodeId} | Type: ${node.type} | Strategy: ${node.strategy}`);
-    lines.push(`Confidence: ${score.confidence.toFixed(2)}`);
-    lines.push("");
-    lines.push("Scoring Factors:");
-    for (const factor of score.factors) {
-      const sign = factor.contribution >= 0 ? "+" : "";
-      lines.push(`  ${factor.name}: ${sign}${factor.contribution.toFixed(3)} — ${factor.description}`);
-    }
-    lines.push(`Recommendation: ${score.recommendation}`);
+    const warnings: string[] = [];
 
     if (doCritique) {
       const critique = generateCritique(node, graph);
       setCritique(node, critique);
-      lines.push("");
-      lines.push(`Critique [${critique.severity}]: ${critique.content}`);
-      lines.push(`Confidence adjustment: ${critique.confidenceDelta >= 0 ? "+" : ""}${critique.confidenceDelta.toFixed(2)}`);
-      lines.push(`Updated confidence: ${node.confidence.toFixed(2)}`);
+      if (critique.severity === "high") {
+        warnings.push(`High severity critique: ${critique.content}`);
+      }
     }
+
+    let nextSuggested: NextAction;
+    const graphHealth = evaluateGraphConfidence(graph);
+    if (graphHealth.overallConfidence < 0.5) {
+      nextSuggested = { tool: "prune", params: { action: "analyze" }, reason: "Graph health score düşük — prune önerilir" };
+    } else if (doFindGaps) {
+      const gaps = findKnowledgeGaps(graph);
+      if (gaps.length > 0) {
+        nextSuggested = { tool: "think", params: { knowledge: { source: "gap-analysis", content: gaps[0].description, relevance: 0.8 } }, reason: "Knowledge gaps tespit edildi — think ile knowledge parametresi önerilir" };
+      } else {
+        nextSuggested = { tool: "metacog", params: { action: "auto_update" }, reason: "Değerlendirme tamamlandı — metacog kontrolü önerilir" };
+      }
+    } else if (metaState.progressMetrics.confidenceTrend === "falling") {
+      nextSuggested = { tool: "metacog", params: { action: "auto_update" }, reason: "Confidence trend düşüyor — metacog auto_update önerilir" };
+    } else {
+      nextSuggested = { tool: "think", reason: "Değerlendirme tamamlandı — akıl yürütmeye devam et" };
+    }
+
+    const response: MCPResponse = {
+      status: warnings.length > 0 ? "warning" : "ok",
+      nodeId,
+      summary: `Node ${nodeId} değerlendirildi — confidence: ${score.confidence.toFixed(2)}`,
+      confidence: score.confidence,
+      data: {
+        scoringFactors: score.factors.map(f => ({ name: f.name, contribution: f.contribution, description: f.description })),
+        recommendation: score.recommendation,
+      },
+      nextSuggested,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+
+    return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
   } else {
     const evaluation = evaluateGraphConfidence(graph);
-    lines.push(`Overall Confidence: ${(evaluation.overallConfidence * 100).toFixed(0)}%`);
-    lines.push("");
+    const warnings: string[] = [];
 
     if (evaluation.weakSpots.length > 0) {
-      lines.push("Weak Spots:");
-      for (const ws of evaluation.weakSpots) {
-        lines.push(`  [${ws.nodeId}] conf=${ws.confidence.toFixed(2)}: ${ws.issue}`);
-      }
-    } else {
-      lines.push("No weak spots detected.");
+      warnings.push(`${evaluation.weakSpots.length} weak spot tespit edildi`);
     }
 
-    lines.push("");
-    if (evaluation.strongPaths.length > 0) {
-      lines.push("Strong Reasoning Paths:");
-      for (const sp of evaluation.strongPaths) {
-        lines.push(`  Path [${sp.nodeIds.join("→")}] avg confidence=${sp.avgConfidence.toFixed(2)}`);
-      }
+    let nextSuggested: NextAction;
+    if (evaluation.overallConfidence < 0.5) {
+      nextSuggested = { tool: "prune", params: { action: "prune" }, reason: "Graph health düşük — prune önerilir" };
+    } else if (doFindGaps) {
+      const gaps = findKnowledgeGaps(graph);
+      nextSuggested = gaps.length > 0
+        ? { tool: "think", params: { knowledge: { source: "gap-analysis", content: gaps[0].description, relevance: 0.8 } }, reason: "Knowledge gaps var — knowledge ile think önerilir" }
+        : { tool: "conclude", reason: "Knowledge gap yok — sonuç çıkarma önerilir" };
+    } else if (metaState.progressMetrics.confidenceTrend === "falling") {
+      nextSuggested = { tool: "metacog", params: { action: "auto_update" }, reason: "Confidence trend düşüyor — strateji değişikliği önerilir" };
     } else {
-      lines.push("No strong paths identified yet.");
+      nextSuggested = { tool: "think", reason: "Değerlendirme tamamlandı — akıl yürütmeye devam et" };
     }
+
+    const response: MCPResponse = {
+      status: warnings.length > 0 ? "warning" : "ok",
+      summary: `Genel graph değerlendirmesi — confidence: ${(evaluation.overallConfidence * 100).toFixed(0)}%`,
+      confidence: evaluation.overallConfidence,
+      data: {
+        weakSpots: evaluation.weakSpots.map(ws => ({ nodeId: ws.nodeId, confidence: ws.confidence, issue: ws.issue })),
+        strongPaths: evaluation.strongPaths.map(sp => ({ nodeIds: sp.nodeIds, avgConfidence: sp.avgConfidence })),
+      },
+      nextSuggested,
+      warnings: warnings.length > 0 ? warnings : undefined,
+    };
+
+    if (doFindGaps) {
+      const gaps = findKnowledgeGaps(graph);
+      (response.data as Record<string, unknown>).knowledgeGaps = gaps.map(g => ({ nodeId: g.nodeId, missingType: g.missingType, description: g.description }));
+    }
+
+    if (doValidate) {
+      const conflicts = validateKnowledgeConsistency(graph);
+      (response.data as Record<string, unknown>).knowledgeConflicts = conflicts.map(c => ({ node1: c.node1, node2: c.node2, conflict: c.conflict }));
+    }
+
+    return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
   }
-
-  if (doFindGaps) {
-    const gaps = findKnowledgeGaps(graph);
-    lines.push("");
-    if (gaps.length > 0) {
-      lines.push("Knowledge Gaps:");
-      for (const gap of gaps) {
-        lines.push(`  [${gap.nodeId}] (${gap.missingType}) ${gap.description}`);
-      }
-    } else {
-      lines.push("No knowledge gaps detected.");
-    }
-  }
-
-  if (doValidate) {
-    const conflicts = validateKnowledgeConsistency(graph);
-    lines.push("");
-    if (conflicts.length > 0) {
-      lines.push("Knowledge Conflicts:");
-      for (const c of conflicts) {
-        lines.push(`  [${c.node1}] ↔ [${c.node2}]: ${c.conflict}`);
-      }
-    } else {
-      lines.push("No knowledge conflicts detected.");
-    }
-  }
-
-  return { content: [{ type: "text", text: lines.join("\n") }] };
 }
 
 function handleMetacog(args: Record<string, unknown>) {
@@ -1113,10 +1239,18 @@ function handleGraph(args: Record<string, unknown>) {
     }
 
     case "path": {
-      const fromId = args.nodeId as string;
-      const toId = args.targetId as string;
-      if (!fromId || !toId) {
+      const rawFromId = args.nodeId as string;
+      const rawToId = args.targetId as string;
+      if (!rawFromId || !rawToId) {
         return { content: [{ type: "text", text: "Must specify both nodeId and targetId for path action" }], isError: true };
+      }
+      const fromId = _resolveNodeId(rawFromId);
+      if (!fromId) {
+        return _nodeNotFoundResponse(rawFromId);
+      }
+      const toId = _resolveNodeId(rawToId);
+      if (!toId) {
+        return _nodeNotFoundResponse(rawToId);
       }
       const path = graph.getPath(fromId, toId);
       if (!path) {
@@ -1127,9 +1261,13 @@ function handleGraph(args: Record<string, unknown>) {
     }
 
     case "node": {
-      const nodeId = args.nodeId as string;
-      if (!nodeId) {
+      const rawNodeId = args.nodeId as string;
+      if (!rawNodeId) {
         return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+      }
+      const nodeId = _resolveNodeId(rawNodeId);
+      if (!nodeId) {
+        return _nodeNotFoundResponse(rawNodeId);
       }
       const node = graph.getNode(nodeId);
       if (!node) {
@@ -1214,10 +1352,14 @@ function handlePrune(args: Record<string, unknown>) {
     }
 
     case "prune_node": {
-      const nodeId = args.nodeId as string;
+      const rawNodeId = args.nodeId as string;
       const reason = (args.reason as string) || "Manual prune";
-      if (!nodeId) {
+      if (!rawNodeId) {
         return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+      }
+      const nodeId = _resolveNodeId(rawNodeId);
+      if (!nodeId) {
+        return _nodeNotFoundResponse(rawNodeId);
       }
       const result = graph.pruneNode(nodeId, reason);
       metaState = updateMetacognition(metaState, graph);
@@ -1236,6 +1378,73 @@ function handlePrune(args: Record<string, unknown>) {
 
 function handleReset(args: Record<string, unknown>) {
   const problem = args.problem as string | undefined;
+  const doSave = (args.save as boolean) ?? false;
+  const saveName = args.saveName as string | undefined;
+  const resume = args.resume as string | undefined;
+  const listSessions = (args.listSessions as boolean) ?? false;
+
+  if (listSessions) {
+    const sessions = sessionManager.list();
+    const response: MCPResponse = {
+      status: "ok",
+      summary: `${sessions.length} kayıtlı oturum bulundu`,
+      data: { sessions },
+      nextSuggested: { tool: "reset", params: { resume: sessions[0]?.name }, reason: "Bir oturuma dön" },
+    };
+    return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+  }
+
+  if (resume) {
+    const sessionData = sessionManager.load(resume);
+    if (!sessionData) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            status: "error",
+            error: "SESSION_NOT_FOUND",
+            provided: resume,
+            hint: "reset({ listSessions: true }) ile kayıtlı oturumları görüntüle",
+          }),
+        }],
+        isError: true,
+      };
+    }
+
+    resetCounter();
+    const newGraph = new ThoughtGraph();
+    if (sessionData.graphSnapshot) {
+      const snapshot = sessionData.graphSnapshot as {
+        nodes: [string, import("./core/types.js").ThoughtNode][];
+        rootIds: string[];
+        branches: string[];
+      };
+      newGraph.deserialize(snapshot);
+    }
+    Object.assign(graph, newGraph);
+    metaState = createMetacognitiveState("sequential");
+    problemStatement = sessionData.problem || null;
+
+    const response: MCPResponse = {
+      status: "ok",
+      summary: `"${resume}" oturumu geri yüklendi — ${graph.size()} node ile devam ediliyor`,
+      confidence: graph.getStats().avgConfidence,
+      nextSuggested: { tool: "think", reason: "Oturuma devam et" },
+    };
+    return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
+  }
+
+  if (doSave) {
+    const name = saveName || `session_${Date.now()}`;
+    sessionManager.save(name, {
+      id: name,
+      name,
+      problem: problemStatement ?? undefined,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      graphSnapshot: graph.serialize(),
+    });
+  }
 
   resetCounter();
   const newGraph = new ThoughtGraph();
@@ -1244,11 +1453,14 @@ function handleReset(args: Record<string, unknown>) {
   metaState = createMetacognitiveState("sequential");
   problemStatement = problem || null;
 
-  const lines: string[] = ["Graph and metacognitive state reset."];
-  if (problemStatement) {
-    lines.push(`New problem: ${problemStatement}`);
-  }
-  return { content: [{ type: "text", text: lines.join("\n") }] };
+  const response: MCPResponse = {
+    status: "ok",
+    summary: doSave
+      ? `Oturum kaydedildi ve graph sıfırlandı${problem ? ` — Yeni problem: ${problem}` : ""}`
+      : `Graph ve metacognitive state sıfırlandı${problem ? ` — Yeni problem: ${problem}` : ""}`,
+    nextSuggested: { tool: "think", reason: "Yeni akıl yürütme oturumu başlat" },
+  };
+  return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
 }
 
 function handleVisualizeThoughtGraph(args: Record<string, unknown>) {
@@ -1284,12 +1496,17 @@ function handleVisualizeThoughtGraph(args: Record<string, unknown>) {
 }
 
 function handleSimulateDevilsAdvocate(args: Record<string, unknown>) {
-  const nodeId = args.nodeId as string;
+  const rawNodeId = args.nodeId as string;
   const depth = (args.depth as number) || 2;
   const intensity = (args.intensity as string) || "moderate";
 
-  if (!nodeId) {
+  if (!rawNodeId) {
     return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  const nodeId = _resolveNodeId(rawNodeId);
+  if (!nodeId) {
+    return _nodeNotFoundResponse(rawNodeId);
   }
 
   try {
@@ -1372,12 +1589,17 @@ function handleCrossDisciplinarySynthesis(args: Record<string, unknown>) {
 }
 
 function handleTemporalProjection(args: Record<string, unknown>) {
-  const nodeId = args.nodeId as string;
+  const rawNodeId = args.nodeId as string;
   const years = args.years as number;
   const scenario = (args.scenario as string) || "realistic";
 
-  if (!nodeId || years === undefined) {
+  if (!rawNodeId || years === undefined) {
     return { content: [{ type: "text", text: "Must specify nodeId and years" }], isError: true };
+  }
+
+  const nodeId = _resolveNodeId(rawNodeId);
+  if (!nodeId) {
+    return _nodeNotFoundResponse(rawNodeId);
   }
 
   try {
@@ -1416,11 +1638,16 @@ function handleTemporalProjection(args: Record<string, unknown>) {
 }
 
 function handleEthicalFrameworkEvaluation(args: Record<string, unknown>) {
-  const nodeId = args.nodeId as string;
+  const rawNodeId = args.nodeId as string;
   const frameworks = (args.frameworks as string[]) || ["deontological", "consequentialist", "virtue", "rights_based"];
 
-  if (!nodeId) {
+  if (!rawNodeId) {
     return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  const nodeId = _resolveNodeId(rawNodeId);
+  if (!nodeId) {
+    return _nodeNotFoundResponse(rawNodeId);
   }
 
   try {
@@ -1524,18 +1751,22 @@ function handleEmotionalIntelligenceAnalysis(args: Record<string, unknown>) {
 }
 
 function handleExplainDecision(args: Record<string, unknown>) {
-  const nodeId = args.nodeId as string;
+  const rawNodeId = args.nodeId as string;
   const detailLevelRaw = (args.detailLevel as string) || "detailed";
   const includeCounterfactuals = (args.includeCounterfactuals as boolean) ?? true;
   
-  // Validate detailLevel
   const validDetailLevels = ["simple", "detailed", "technical"] as const;
   const detailLevel = validDetailLevels.includes(detailLevelRaw as any) 
     ? (detailLevelRaw as "simple" | "detailed" | "technical")
     : "detailed";
 
-  if (!nodeId) {
+  if (!rawNodeId) {
     return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  const nodeId = _resolveNodeId(rawNodeId);
+  if (!nodeId) {
+    return _nodeNotFoundResponse(rawNodeId);
   }
 
   try {
@@ -1560,11 +1791,16 @@ function handleExplainDecision(args: Record<string, unknown>) {
 }
 
 function handleSocialImpactAnalysis(args: Record<string, unknown>) {
-  const nodeId = args.nodeId as string;
+  const rawNodeId = args.nodeId as string;
   const stakeholders = (args.stakeholders as string[]) || ["customers", "employees", "investors", "community"];
 
-  if (!nodeId) {
+  if (!rawNodeId) {
     return { content: [{ type: "text", text: "Must specify nodeId" }], isError: true };
+  }
+
+  const nodeId = _resolveNodeId(rawNodeId);
+  if (!nodeId) {
+    return _nodeNotFoundResponse(rawNodeId);
   }
 
   try {
@@ -1815,6 +2051,174 @@ function handleOptimizePrompt(args: Record<string, unknown>) {
       isError: true,
     };
   }
+}
+
+function handleHelp(args: Record<string, unknown>) {
+  const category = (args.category as string) || "all";
+
+  const toolGroups = {
+    core: {
+      label: "Temel Araçlar",
+      description: "Gunluk kullanım icin",
+      tools: [
+        { name: "think", purpose: "Dusunce grafigine yeni dusunce ekle", quickStart: 'think({ content: "...", strategy: "sequential" })' },
+        { name: "evaluate", purpose: "Mevcut dusunceleri degerlendir ve critique al", quickStart: "evaluate({ critique: true })" },
+        { name: "metacog", purpose: "Akil yurutme surecini izle, strateji degistir", quickStart: 'metacog({ action: "auto_update" })' },
+        { name: "graph", purpose: "Dusunce grafigini gorsellestir ve sorgula", quickStart: 'graph({ action: "visualize" })' },
+        { name: "prune", purpose: "Cikmaz ve gereksiz dusunceleri temizle", quickStart: 'prune({ action: "analyze" })' },
+        { name: "reset", purpose: "Yeni oturum baslat veya kaydedilmis oturuma don", quickStart: 'reset({ problem: "Sorunum..." })' },
+        { name: "conclude", purpose: "Tum analizi ozetle ve sonuc cikar", quickStart: 'conclude({ detailLevel: "detailed" })' },
+      ],
+    },
+    advanced: {
+      label: "Gelismis Araclar",
+      description: "Derin analiz icin",
+      tools: [
+        { name: "visualize_thought_graph", purpose: "Grafigi SVG/ASCII olarak render et" },
+        { name: "simulate_devils_advocate", purpose: "Dusunceye karsi argumanlar uret" },
+        { name: "cross_disciplinary_synthesis", purpose: "Farkli alanlardan icgoru sentezle" },
+        { name: "temporal_projection", purpose: "Dusunceleri gelecek/geomise yansit" },
+        { name: "ethical_framework_evaluation", purpose: "Etik cercevelerle degerlendirme" },
+        { name: "emotional_intelligence_analysis", purpose: "Duygusal ton ve dinamikleri analiz et" },
+        { name: "explain_decision", purpose: "Karar yolunu insan diline cevir" },
+        { name: "social_impact_analysis", purpose: "Paydas ve sosyal etki analizi" },
+        { name: "optimize_prompt", purpose: "PromptOptimizer (Node Zero) ile prompt optimize et" },
+      ],
+    },
+    workflow: {
+      label: "Onerilen Akislar",
+      workflows: [
+        {
+          name: "Hizli Karar",
+          steps: [
+            'reset({ problem: "Kararim..." })',
+            'think({ content: "Secenek A", strategy: "parallel", parallel: [...] })',
+            "evaluate({ critique: true })",
+            "conclude()",
+          ],
+        },
+        {
+          name: "Derin Analiz",
+          steps: [
+            'reset({ problem: "..." })',
+            'think({ strategy: "first_principles", ... })',
+            'think({ strategy: "counterfactual", ... })',
+            'simulate_devils_advocate({ nodeId: "best" })',
+            "evaluate({ findGaps: true })",
+            'metacog({ action: "auto_update" })',
+            'prune({ action: "prune" })',
+            "conclude({ includeCounterfactuals: true })",
+          ],
+        },
+        {
+          name: "Cikmaz Asma",
+          steps: [
+            'metacog({ action: "report" })',
+            'metacog({ action: "switch", strategy: "parallel" })',
+            'cross_disciplinary_synthesis({ sourceDomains: [...], targetProblem: "..." })',
+            'think({ strategy: "abductive", ... })',
+          ],
+        },
+      ],
+    },
+  };
+
+  const result: Record<string, unknown> = { status: "ok" };
+
+  if (category === "all" || category === "core") {
+    result.core = toolGroups.core;
+  }
+  if (category === "all" || category === "advanced") {
+    result.advanced = toolGroups.advanced;
+  }
+  if (category === "all" || category === "workflow") {
+    result.workflow = toolGroups.workflow;
+  }
+
+  result.summary = "deep-thinker MCP — 17 arac, 9+1 strateji, 3 onerilen akis";
+  result.nextSuggested = { tool: "think", reason: "Akil yurutmeye basla" };
+
+  return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+}
+
+function _deriveActionItems(
+  topConclusions: import("./core/types.js").ThoughtNode[],
+  bestPath: import("./core/types.js").ThoughtNode[]
+): Array<{ action: string; priority: string; basedOn: string }> {
+  const items: Array<{ action: string; priority: string; basedOn: string }> = [];
+  for (const node of topConclusions) {
+    items.push({
+      action: `Investigate: ${node.content.substring(0, 80)}`,
+      priority: node.confidence > 0.8 ? "high" : node.confidence > 0.5 ? "medium" : "low",
+      basedOn: node.id,
+    });
+  }
+  for (const node of bestPath.filter(n => n.type === "insight")) {
+    items.push({
+      action: `Leverage insight: ${node.content.substring(0, 80)}`,
+      priority: "medium",
+      basedOn: node.id,
+    });
+  }
+  return items;
+}
+
+function handleConclude(args: Record<string, unknown>) {
+  const detailLevel = (args.detailLevel as string) || "detailed";
+  const includeCounterfactuals = (args.includeCounterfactuals as boolean) ?? false;
+  const format = (args.format as string) || "structured";
+
+  const stats = graph.getStats();
+  const bestPath = graph.getBestPath();
+  const allLeaves = graph.getLeaves();
+
+  const topConclusions = allLeaves
+    .filter(n => n.type === "conclusion" || n.confidence > 0.7)
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 3);
+
+  const pruneReport = prunerReport(graph);
+
+  const strategiesUsed = Object.entries(stats.strategyDistribution)
+    .filter(([, v]) => v > 0)
+    .map(([k]) => k);
+
+  const response: MCPResponse = {
+    status: "ok",
+    summary: `${stats.totalNodes} dusunce, ${stats.branches.length} dal, ${strategiesUsed.join("+")} stratejileriyle analiz tamamlandi`,
+    confidence: stats.avgConfidence,
+    data: {
+      conclusion: {
+        primaryFinding: topConclusions[0]?.content ?? "Henuz net bir sonuc yok",
+        confidence: topConclusions[0]?.confidence ?? 0,
+        supportingEvidence: topConclusions.slice(1).map(n => ({
+          content: n.content,
+          confidence: n.confidence,
+          type: n.type,
+        })),
+      },
+      reasoning: {
+        strategiesUsed,
+        keyInsights: bestPath.filter(n => n.type === "insight").map(n => n.content),
+        critiques: bestPath.filter(n => n.type === "critique").map(n => n.content),
+      },
+      actionItems: _deriveActionItems(topConclusions, bestPath),
+      graphHealth: {
+        totalThoughts: stats.totalNodes,
+        deadEnds: (pruneReport.match(/\d+ dead end/) ?? [])[0] ?? "0",
+        avgConfidence: stats.avgConfidence,
+        recommendation: stats.avgConfidence < 0.5 ? "Prune calistirmaminiz onerilir" : "Graf saglikli gorunuyor",
+      },
+      detailLevel,
+      format,
+      includeCounterfactuals,
+    },
+    nextSuggested: stats.avgConfidence < 0.5
+      ? { tool: "prune", params: { action: "prune" }, reason: "Temizlik sonrasi daha net sonuc alinabilir" }
+      : { tool: "reset", params: { save: true }, reason: "Analizi kaydetmeyi unutmayin" },
+  };
+
+  return { content: [{ type: "text", text: JSON.stringify(response, null, 2) }] };
 }
 
 // ============================================================================
