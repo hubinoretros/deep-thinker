@@ -6,7 +6,7 @@
 [![license](https://img.shields.io/github/license/hubinoretros/deep-thinker.svg)](https://github.com/hubinoretros/deep-thinker/blob/master/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/hubinoretros/deep-thinker.svg)](https://github.com/hubinoretros/deep-thinker/stargazers)
 
-Advanced cognitive thinking MCP server with DAG-based thought graph, **9 reasoning strategies** including First Principles, Counterfactual, Systems Thinking & MCTS, metacognition, and self-evaluation.
+Advanced cognitive thinking MCP server with DAG-based thought graph, **10 reasoning strategies** (including auto-selection), **17 tools**, node aliases, session persistence, structured responses, and intelligent error handling.
 
 A significant evolution beyond sequential-thinking MCP, providing structured deep reasoning with graph-based thought management, schema validation, and intelligent strategy selection.
 
@@ -40,13 +40,19 @@ npx deep-thinker
 ## Features
 
 - **DAG-Based Thought Graph** — Thoughts form a directed acyclic graph with branching, merging, and cross-edges (not just a linear chain)
-- **9 Reasoning Strategies** — Sequential, Dialectic (thesis→antithesis→synthesis), Parallel, Analogical, Abductive, **First Principles** (deconstruct to fundamentals), **Counterfactual** (what-if with ripple effects), **Systems Thinking** (feedback loops & leverage points), **MCTS** (Monte Carlo optimization)
+- **10 Reasoning Strategies** — Sequential, Dialectic (thesis→antithesis→synthesis), Parallel, Analogical, Abductive, **First Principles** (deconstruct to fundamentals), **Counterfactual** (what-if with ripple effects), **Systems Thinking** (feedback loops & leverage points), **MCTS** (Monte Carlo optimization), **Auto** (intelligent auto-selection based on content and graph state)
+- **Node Aliases** — Use `"last"`, `"best"`, `"root"` instead of cryptic node IDs for any nodeId parameter
+- **Structured Responses** — All tool responses return consistent `MCPResponse` JSON with `status`, `summary`, `confidence`, `nextSuggested` action
+- **Session Persistence** — Auto-saves thought graph to `~/.deep-thinker/sessions/`; resume across MCP restarts with `reset({ resume: "name" })`
+- **Friendly Error Messages** — Zod validation errors translated to human-readable hints (e.g., `"confidence 0 ile 1 arasında..."`)
 - **Confidence Scoring** — Multi-factor confidence evaluation with support/contradiction analysis, depth penalties, and knowledge integration boosts
 - **Self-Critique** — Automatic critique generation with severity levels and confidence adjustments
 - **Metacognitive Engine** — Detects stuck states, stagnation, declining confidence; suggests strategy switches and corrective actions
 - **Knowledge Integration** — Attach external knowledge to thoughts, detect gaps, validate consistency across sources
 - **Thought Pruning** — Dead-end detection, redundancy removal, deep unproductive branch elimination, path optimization
-- **High-IQ Reasoning Enhancements** — 8 new tools for advanced cognition: visualization, devil's advocate, cross-disciplinary synthesis, temporal projection, ethical evaluation, emotional intelligence analysis, decision explanation, social impact analysis
+- **help Tool** — Discover all 17 tools grouped by category (core/advanced/workflow) with quick-start examples
+- **conclude Tool** — Comprehensive graph summary with primaryFinding, actionItems, graphHealth, and nextSuggested
+- **High-IQ Reasoning Enhancements** — 8 advanced tools: visualization, devil's advocate, cross-disciplinary synthesis, temporal projection, ethical evaluation, emotional intelligence analysis, decision explanation, social impact analysis
 - **Emotional Intelligence** — Analyze emotional tone, empathy, persuasion effectiveness, stakeholder emotions
 - **Ethical Frameworks** — Evaluate through deontological, consequentialist, virtue ethics, rights-based perspectives
 - **Cross-Domain Synthesis** — Combine insights from biology, economics, physics, psychology, computer science, art
@@ -104,9 +110,64 @@ Or if installed globally:
 
 The server communicates over stdio. Point your MCP client to the `deep-thinker` command or `node path/to/dist/index.js`.
 
+## Response Format
+
+All tool responses follow the `MCPResponse` structure:
+
+```json
+{
+  "status": "ok | error | warning",
+  "nodeId": "thought_3",
+  "summary": "sequential stratejisiyle \"Should we use microservices?...\" eklendi",
+  "confidence": 0.75,
+  "data": { "...": "tool-specific data" },
+  "nextSuggested": {
+    "tool": "evaluate",
+    "params": { "critique": true },
+    "reason": "Düşük confidence — değerlendirme önerilir"
+  },
+  "warnings": ["Stuck detected: ..."]
+}
+```
+
+The `nextSuggested` field always recommends the next logical step, making it easy to chain tool calls without guessing.
+
+## Node Aliases
+
+Instead of looking up cryptic node IDs, use aliases for any `nodeId`, `parentId`, or `targetId` parameter:
+
+| Alias | Resolves To |
+|-------|-------------|
+| `"last"` | Most recently added node (insertion order) |
+| `"best"` | Node with highest confidence score |
+| `"root"` | First node with no incoming edges |
+
+```
+evaluate({ nodeId: "last" })                              → evaluates the latest thought
+simulate_devils_advocate({ nodeId: "best", depth: 2 })    → challenges the strongest thought
+graph({ action: "path", nodeId: "root", targetId: "best" }) → traces from root to best conclusion
+```
+
+## Session Persistence
+
+Thought graphs are automatically saved after every `think` call. Sessions are stored in `~/.deep-thinker/sessions/`.
+
+```javascript
+// Save current session explicitly
+reset({ save: true, saveName: "my-analysis" })
+
+// List saved sessions
+reset({ listSessions: true })
+
+// Resume a saved session after MCP restart
+reset({ resume: "my-analysis" })
+```
+
 ## Tools
 
-### `think`
+### Core Tools
+
+#### `think`
 
 Add a thought to the cognitive graph using a reasoning strategy.
 
@@ -116,9 +177,9 @@ Add a thought to the cognitive graph using a reasoning strategy.
 |-----------|------|----------|-------------|
 | `content` | string | Yes | The thought content |
 | `type` | string | No | Thought type: `hypothesis`, `analysis`, `evidence`, `conclusion`, `question`, `assumption`, `insight`, `critique`, `synthesis`, `observation` |
-| `strategy` | string | No | Strategy: `sequential`, `dialectic`, `parallel`, `analogical`, `abductive`, `first_principles`, `counterfactual`, `systems_thinking`, `mcts` |
+| `strategy` | string | No | Strategy: `sequential`, `dialectic`, `parallel`, `analogical`, `abductive`, `first_principles`, `counterfactual`, `systems_thinking`, `mcts`, **`auto`** |
 | `confidence` | number | No | Initial confidence 0-1 (default: 0.5) |
-| `parentId` | string | No | Parent node ID (default: last leaf) |
+| `parentId` | string | No | Parent node ID or alias (default: last leaf) |
 | `branch` | string | No | Branch name for parallel exploration |
 | `tags` | string[] | No | Tags for categorization |
 | `edgeTo` | object | No | Explicit edge: `{ targetId, type }` |
@@ -126,6 +187,10 @@ Add a thought to the cognitive graph using a reasoning strategy.
 | `parallel` | array | No | Parallel mode: `[{ content, type, confidence }]` |
 | `analogical` | object | No | Analogical mode: `{ sourceDomain, mapping, projectedConclusion }` |
 | `abductive` | object | No | Abductive mode: `{ observation, explanations[], bestExplanation? }` |
+| `firstPrinciples` | object | No | First Principles mode: `{ problem, assumptions?, depth?, domain? }` |
+| `counterfactual` | object | No | Counterfactual mode: `{ currentState?, variablesToChange, rippleDepth? }` |
+| `systemsThinking` | object | No | Systems Thinking mode: `{ systemDescription?, components, focusArea? }` |
+| `mcts` | object | No | MCTS mode: `{ problem?, possibleActions, numSimulations? }` |
 | `knowledge` | object | No | Attach knowledge: `{ source, content, relevance }` |
 
 **Strategy details:**
@@ -141,10 +206,24 @@ Add a thought to the cognitive graph using a reasoning strategy.
 | **Counterfactual** | "What-if" scenarios with multi-stage ripple effects | Risk/impact analysis |
 | **Systems Thinking** | Feedback loops, leverage points, emergent properties | Complex systems |
 | **MCTS** | Monte Carlo Tree Search for optimal decision selection | Optimization problems |
+| **Auto** | Automatically selects strategy based on content signals and graph context | Hands-off reasoning |
+
+**How `auto` strategy works:**
+
+The `auto` strategy analyzes your content for keywords and the current graph state:
+- Content with "why"/"neden"/"how"/"nasıl" → `abductive`
+- Content with "if"/"eğer"/"what if"/"varsayalım" → `counterfactual`
+- Content with "vs"/"veya"/"compare"/"karşılaştır" → `dialectic`
+- Content with "system"/"sistem"/"loop"/"döngü" → `systems_thinking`
+- Content with "fundamental"/"temel"/"assumption"/"varsayım" → `first_principles`
+- Low avg confidence + many nodes → `parallel` (break through impasse)
+- First thought → `sequential`
+- After 4+ sequential thoughts → `dialectic` (introduce opposing view)
+- Default → `sequential`
 
 **Edge types:** `derives_from`, `contradicts`, `supports`, `refines`, `challenges`, `synthesizes`, `parallels`, `abstracts`, `instantiates`
 
-### `evaluate`
+#### `evaluate`
 
 Evaluate the thinking process with confidence scoring, critique, and graph health analysis.
 
@@ -152,12 +231,12 @@ Evaluate the thinking process with confidence scoring, critique, and graph healt
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodeId` | string | No | Specific node to evaluate (default: entire graph) |
+| `nodeId` | string | No | Specific node to evaluate (accepts aliases: `last`, `best`, `root`) |
 | `critique` | boolean | No | Generate self-critique (default: true) |
 | `findGaps` | boolean | No | Find knowledge gaps (default: false) |
 | `validateKnowledge` | boolean | No | Validate knowledge consistency (default: false) |
 
-### `metacog`
+#### `metacog`
 
 Metacognitive operations — monitor and control the thinking process.
 
@@ -175,7 +254,7 @@ The metacognitive engine automatically:
 - Detects excessive contradictions
 - Suggests strategy switches, pruning, backtracking, or concluding
 
-### `graph`
+#### `graph`
 
 Query and visualize the thought graph.
 
@@ -184,10 +263,10 @@ Query and visualize the thought graph.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `action` | string | Yes | `visualize`, `stats`, `path`, `node`, `branches`, `best_path`, `leaves` |
-| `nodeId` | string | No | Node ID (for `path`, `node` actions) |
-| `targetId` | string | No | Target ID (for `path` action) |
+| `nodeId` | string | No | Node ID or alias (for `path`, `node` actions) |
+| `targetId` | string | No | Target ID or alias (for `path` action) |
 
-### `prune`
+#### `prune`
 
 Prune and optimize the thought graph.
 
@@ -196,22 +275,65 @@ Prune and optimize the thought graph.
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `action` | string | Yes | `analyze` (report only), `prune` (execute), `optimize_path`, `prune_node` |
-| `nodeId` | string | No | Node to prune (for `prune_node`) |
+| `nodeId` | string | No | Node to prune — accepts aliases (for `prune_node`) |
 | `reason` | string | No | Reason (for `prune_node`) |
 
-### `reset`
+#### `reset`
 
-Reset the thought graph and start a fresh session.
+Reset the thought graph and start a fresh session, save, or resume a saved session.
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `problem` | string | No | New problem statement |
+| `save` | boolean | No | Save current session before resetting (default: false) |
+| `saveName` | string | No | Name for saved session (recommended if save: true) |
+| `resume` | string | No | Resume a previously saved session by name |
+| `listSessions` | boolean | No | List all saved sessions |
 
-## Enhanced Tools (High-IQ Reasoning)
+#### `conclude`
 
-### `visualize_thought_graph`
+Analyze the entire thought graph and produce a comprehensive summary-conclusion with action items and graph health report.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `detailLevel` | string | No | `brief`, `detailed`, `technical` (default: detailed) |
+| `includeCounterfactuals` | boolean | No | Include counterfactual analysis (default: false) |
+| `format` | string | No | `prose`, `structured`, `executive` (default: structured) |
+
+**Response includes:**
+- `primaryFinding` — Top conclusion with confidence
+- `supportingEvidence` — Additional high-confidence nodes
+- `strategiesUsed` — Which strategies contributed
+- `keyInsights` — Insight-type nodes from the best path
+- `actionItems` — Prioritized actions derived from conclusions
+- `graphHealth` — Node count, dead ends, avg confidence, recommendation
+- `nextSuggested` — Logical next step (prune if unhealthy, save if done)
+
+#### `help`
+
+Discover deep-thinker tools and learn usage workflows.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `category` | string | No | `all`, `core`, `advanced`, `workflow` (default: all) |
+
+**Categories:**
+- **core** — 7 daily-use tools (think, evaluate, metacog, graph, prune, reset, conclude)
+- **advanced** — 8 deep-analysis tools (visualization, devil's advocate, cross-disciplinary, temporal, ethical, emotional, explanation, social impact, prompt optimizer)
+- **workflow** — 3 recommended workflows:
+  - *Quick Decision* — reset → think parallel → evaluate → conclude
+  - *Deep Analysis* — reset → first_principles → counterfactual → devil's advocate → evaluate → metacog → prune → conclude
+  - *Breaking Dead Ends* — metacog report → switch strategy → cross-disciplinary → abductive
+
+### Enhanced Tools (High-IQ Reasoning)
+
+#### `visualize_thought_graph`
 
 Generate visual representation of the thought graph as SVG or ASCII.
 
@@ -223,7 +345,7 @@ Generate visual representation of the thought graph as SVG or ASCII.
 | `highlightPath` | string | No | Path between two node IDs (format: `fromId-toId`) |
 | `showConfidence` | boolean | No | Show confidence scores (default: true) |
 
-### `simulate_devils_advocate`
+#### `simulate_devils_advocate`
 
 Generate counterarguments and opposing viewpoints for a given thought.
 
@@ -231,11 +353,11 @@ Generate counterarguments and opposing viewpoints for a given thought.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodeId` | string | Yes | Target node ID to challenge |
+| `nodeId` | string | Yes | Target node ID or alias (`last`, `best`, `root`) |
 | `depth` | number | No | Levels of counterarguments (1-5, default: 2) |
 | `intensity` | string | No | `mild`, `moderate`, or `aggressive` (default: moderate) |
 
-### `cross_disciplinary_synthesis`
+#### `cross_disciplinary_synthesis`
 
 Combine insights from multiple domains to generate novel perspectives.
 
@@ -247,7 +369,7 @@ Combine insights from multiple domains to generate novel perspectives.
 | `targetProblem` | string | Yes | Problem to apply cross-domain insights to |
 | `maxAnalogies` | number | No | Max analogies to generate (1-10, default: 3) |
 
-### `temporal_projection`
+#### `temporal_projection`
 
 Project thoughts into future or past scenarios.
 
@@ -255,11 +377,11 @@ Project thoughts into future or past scenarios.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodeId` | string | Yes | Root node ID to project from |
+| `nodeId` | string | Yes | Root node ID or alias |
 | `years` | number | Yes | Years forward (positive) or backward (negative) |
 | `scenario` | string | No | `optimistic`, `pessimistic`, `realistic`, `disruptive` (default: realistic) |
 
-### `ethical_framework_evaluation`
+#### `ethical_framework_evaluation`
 
 Evaluate a thought or decision through multiple ethical frameworks.
 
@@ -267,10 +389,10 @@ Evaluate a thought or decision through multiple ethical frameworks.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodeId` | string | Yes | Node ID to evaluate ethically |
+| `nodeId` | string | Yes | Node ID or alias |
 | `frameworks` | string[] | No | Which frameworks: `deontological`, `consequentialist`, `virtue`, `rights_based` (default: all) |
 
-### `emotional_intelligence_analysis`
+#### `emotional_intelligence_analysis`
 
 Analyze emotional tone, stakeholder emotions, and social dynamics.
 
@@ -282,7 +404,7 @@ Analyze emotional tone, stakeholder emotions, and social dynamics.
 | `context` | string | No | Context (e.g., `team meeting`, `customer feedback`, `crisis situation`) |
 | `perspectiveTaking` | number | No | Level of perspective-taking 0-1 (default: 0.7) |
 
-### `explain_decision`
+#### `explain_decision`
 
 Generate human-understandable explanation of a decision path.
 
@@ -290,11 +412,11 @@ Generate human-understandable explanation of a decision path.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodeId` | string | Yes | Decision/conclusion node ID to explain |
+| `nodeId` | string | Yes | Decision/conclusion node ID or alias |
 | `detailLevel` | string | No | `simple`, `detailed`, `technical` (default: detailed) |
 | `includeCounterfactuals` | boolean | No | Show what-if scenarios (default: true) |
 
-### `social_impact_analysis`
+#### `social_impact_analysis`
 
 Analyze social impact, stakeholder emotions, group cohesion, and persuasion effectiveness.
 
@@ -302,10 +424,38 @@ Analyze social impact, stakeholder emotions, group cohesion, and persuasion effe
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `nodeId` | string | Yes | Node ID to analyze for social impact |
+| `nodeId` | string | Yes | Node ID or alias |
 | `stakeholders` | string[] | No | Stakeholder groups (default: `["customers", "employees", "investors", "community"]`) |
 
+#### `optimize_prompt`
+
+PromptOptimizer (Node Zero) — transform vague prompts into optimized Super Prompts with strategy routing.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `originalPrompt` | string | Yes | User's raw, potentially vague prompt |
+| `userContext` | object | No | `{ expertiseLevel, domainKnowledge[], preferences }` |
+| `conversationHistory` | array | No | Previous messages for context (max 20) |
+| `optimizationLevel` | string | No | `light`, `standard`, `aggressive` (default: standard) |
+| `targetModel` | string | No | `claude`, `gpt4`, `gpt35`, `local`, `generic` (default: generic) |
+| `autoRoute` | boolean | No | Auto-route to recommended strategy (default: false) |
+
 ## Usage Examples
+
+### Auto Strategy Selection (New!)
+
+```
+think: { content: "Eğer mikroservis kullansaydık ne olurdu?" }
+→ Auto-selects strategy: counterfactual (detected "Eğer" = "if" signal)
+
+think: { content: "Why is the server crashing?" }
+→ Auto-selects strategy: abductive (detected "why" signal)
+
+think: { content: "Monolith vs microservices?" }
+→ Auto-selects strategy: dialectic (detected "vs" comparison signal)
+```
 
 ### Sequential Reasoning
 
@@ -313,8 +463,8 @@ Analyze social impact, stakeholder emotions, group cohesion, and persuasion effe
 think: "Should we use microservices?" → type: question, confidence: 0.9
 think: "Monolith has deployment bottlenecks" → type: analysis, confidence: 0.7
 think: "Team lacks DevOps capacity for microservices" → type: evidence, confidence: 0.8
-evaluate: → overall confidence 0.73
-metacog: auto_update → strategy: sequential, progress: normal
+evaluate: { nodeId: "last", critique: true }
+→ { status: "ok", confidence: 0.73, nextSuggested: { tool: "metacog" } }
 ```
 
 ### Dialectic Reasoning
@@ -331,34 +481,30 @@ think: {
 }
 ```
 
-### Parallel Exploration
+### Using Node Aliases
 
 ```
-think: {
-  strategy: "parallel",
-  parallel: [
-    { content: "Team expertise in Docker/K8s", type: "evidence", confidence: 0.8 },
-    { content: "Limited DevOps capacity", type: "evidence", confidence: 0.6 },
-    { content: "Budget allows hiring", type: "evidence", confidence: 0.4 }
-  ]
-}
+evaluate({ nodeId: "last" })                              → evaluate latest thought
+simulate_devils_advocate({ nodeId: "best", depth: 3 })    → challenge strongest thought
+graph({ action: "path", nodeId: "root", targetId: "best" }) → trace reasoning path
+think({ parentId: "root", content: "Alternative..." })    → branch from root
 ```
 
-### Abductive Reasoning
+### Session Save & Resume
 
 ```
-think: {
-  strategy: "abductive",
-  abductive: {
-    observation: "The grass is wet",
-    explanations: [
-      { content: "It rained", plausibility: 0.8 },
-      { content: "Sprinklers were on", plausibility: 0.6 }
-    ],
-    bestExplanation: "It rained"
-  },
-  confidence: 0.8
-}
+// Work on a problem...
+think({ content: "Analysis...", strategy: "auto" })
+think({ content: "Another insight..." })
+
+// Save before closing
+reset({ save: true, saveName: "architecture-review" })
+
+// ... MCP restarts ...
+
+// Resume exactly where you left off
+reset({ resume: "architecture-review" })
+→ { status: "ok", summary: "architecture-review oturumu geri yüklendi — 5 node ile devam ediliyor" }
 ```
 
 ### First Principles Reasoning
@@ -432,82 +578,136 @@ think: {
 → Creates: Root → Actions → Simulations → Pruning Analysis → Optimal Path
 ```
 
+### Conclude Analysis
+
+```
+conclude({ detailLevel: "detailed" })
+→ {
+  status: "ok",
+  summary: "12 dusunce, 3 dal, sequential+counterfactual stratejileriyle analiz tamamlandi",
+  data: {
+    conclusion: { primaryFinding: "...", confidence: 0.85 },
+    actionItems: [{ action: "Investigate...", priority: "high" }, ...],
+    graphHealth: { totalThoughts: 12, avgConfidence: 0.72, recommendation: "Graf saglikli gorunuyor" }
+  },
+  nextSuggested: { tool: "reset", params: { save: true }, reason: "Analizi kaydetmeyi unutmayin" }
+}
+```
+
 ### Metacognitive Guidance
 
 ```
 metacog: { action: "auto_update" }
-→ ⚠ Stuck: confidence has not improved for 3 steps
-→ 💡 Action: [switch_strategy] Try parallel exploration
-→   Suggested Strategy: parallel
+→ Stuck detected + suggested action in nextSuggested
 
 metacog: { action: "switch", strategy: "parallel", reason: "Break through impasse" }
-→ Strategy switched: sequential → parallel
+→ Strategy switched + next step recommended
 ```
 
 ### Pruning
 
 ```
 prune: { action: "analyze" }
-→ Dead Ends: 2
-  [thought_7] confidence=0.15: Bad idea...
-  [thought_9] confidence=0.10: Another dead end...
-→ Redundant Branch Groups: 1
-  Keep [thought_5], prune [thought_6]: Redundant analysis...
-→ Total prunable: 3 node(s)
+→ Dead Ends, Redundant Branches, Total prunable count
 
 prune: { action: "prune" }
-→ Pruned 3 node(s) in 3 operations
+→ Nodes pruned + metacog updated + nextSuggested
+```
+
+### Getting Help
+
+```
+help()                    → all tools, all categories, all workflows
+help({ category: "core" })     → 7 core tools with quick-start examples
+help({ category: "advanced" }) → 9 advanced tools
+help({ category: "workflow" }) → 3 recommended workflows
+```
+
+## Friendly Error Messages
+
+When validation fails, you get human-readable errors instead of raw Zod output:
+
+```
+think({ confidence: 1.5 })
+→ {
+  status: "error",
+  error: "VALIDATION_ERROR",
+  message: "\"confidence\" parametresinde hata: ...",
+  field: "confidence",
+  hint: "confidence 0 ile 1 arasında bir sayı olmalı. Örnek: confidence: 0.7"
+}
+
+evaluate({ nodeId: "nonexistent" })
+→ {
+  status: "error",
+  error: "NODE_NOT_FOUND",
+  provided: "nonexistent",
+  hint: "Geçerli alias'lar: \"last\", \"best\", \"root\" veya graph aracıyla node ID alın"
+}
 ```
 
 ## Architecture
 
 ```
 src/
-├── index.ts                    MCP server & tool handlers
-├── test.ts                     Core functionality tests
-├── test_enhanced_strategies.ts New strategy tests ⭐ v2.0
-└── core/
-    ├── types.ts                Type definitions & constants
-    ├── schemas.ts              ⭐ NEW v2.0: Zod validation schemas
-    ├── node.ts                 ThoughtNode CRUD operations
-    ├── graph.ts                DAG-based thought graph
-    ├── strategies.ts           9 reasoning strategy implementations ⭐ 4 NEW v2.0
-    ├── scorer.ts               Confidence scoring & self-critique
-    ├── metacog.ts              Metacognitive engine ⭐ Smart triggers v2.0
-    ├── knowledge.ts            Knowledge integration & validation
-    └── pruner.ts               Dead-end/redundancy detection & pruning
+├── index.ts                         MCP server & 17 tool handlers
+├── test.ts                          Core functionality tests (118 tests)
+├── test_enhanced_strategies.ts      Strategy tests (13 tests)
+├── core/
+│   ├── types.ts                     Type definitions, MCPResponse, NextAction
+│   ├── schemas.ts                   Zod validation schemas (10 strategies incl. auto)
+│   ├── node.ts                      ThoughtNode CRUD operations
+│   ├── graph.ts                     DAG-based thought graph + resolveNodeId + aliases
+│   ├── strategies.ts               10 reasoning strategies + selectStrategy (auto)
+│   ├── scorer.ts                    Confidence scoring & self-critique
+│   ├── metacog.ts                   Metacognitive engine with smart triggers
+│   ├── knowledge.ts                 Knowledge integration & validation
+│   ├── pruner.ts                    Dead-end/redundancy detection & pruning
+│   ├── session.ts                   Session persistence (save/load/resume)
+│   └── errors.ts                    Friendly error formatting (Zod + unknown)
+└── enhancements/
+    ├── visualization.ts            SVG & ASCII graph visualization
+    ├── devils_advocate.ts           Counterargument generation
+    ├── cross_disciplinary.ts        Cross-domain analogy engine
+    ├── temporal_projection.ts       Future/past thought projection
+    ├── ethical_evaluation.ts         4 ethical frameworks
+    ├── emotional_intelligence.ts    Emotion & sentiment analysis
+    ├── explanation.ts               Decision explainability
+    └── social_impact.ts             Stakeholder & social impact
+```
 
-New in v2.0:
-- schemas.ts: Strict Zod validation for type safety
-- FirstPrinciples, Counterfactual, SystemsThinking, MCTS strategies
-- Smart strategy triggers in metacog.ts
-```
-src/
-├── index.ts          MCP server & tool handlers
-└── core/
-    ├── types.ts      Type definitions & constants
-    ├── node.ts       ThoughtNode CRUD operations
-    ├── graph.ts      DAG-based thought graph
-    ├── strategies.ts 9 reasoning strategy implementations
-    ├── scorer.ts     Confidence scoring & self-critique
-    ├── metacog.ts    Metacognitive engine
-    ├── knowledge.ts  Knowledge integration & validation
-    └── pruner.ts     Dead-end/redundancy detection & pruning
-```
+## What's New in v3.0.0
+
+| Feature | Description |
+|---------|-------------|
+| **Node Aliases** | Use `"last"`, `"best"`, `"root"` instead of node IDs for all nodeId params |
+| **MCPResponse** | Structured JSON responses with `status`, `summary`, `confidence`, `nextSuggested` |
+| **Session Persistence** | Auto-save to `~/.deep-thinker/sessions/`, resume across restarts |
+| **Friendly Errors** | Zod errors → human-readable hints with field-specific guidance |
+| **help Tool** | 3-category tool discovery with workflow examples |
+| **conclude Tool** | Graph summary with primaryFinding, actionItems, graphHealth |
+| **strategy: auto** | Automatic strategy selection based on content keywords + graph state |
 
 ## Comparison with sequential-thinking
 
 | Feature | sequential-thinking | deep-thinker |
 |---------|-------------------|--------------|
 | Thought structure | Linear chain | DAG (branch/merge/cross-edges) |
-| Strategies | Sequential only | **9 strategies** (sequential, dialectic, parallel, analogical, abductive, **first_principles**, **counterfactual**, **systems_thinking**, **mcts**) |
+| Strategies | Sequential only | **10 strategies** (incl. auto-selection) |
 | Schema Validation | None | **Zod schemas for all strategies** |
 | Confidence | Basic thought number | Multi-factor scoring with trend analysis |
 | Self-critique | None | Automatic with severity levels |
-| Metacognition | None | Stuck detection, **smart strategy triggers**, auto-switching |
+| Metacognition | None | Stuck detection, smart strategy triggers, auto-switching |
 | Knowledge | None | External references, gap detection, consistency validation |
 | Pruning | None | Dead-end, redundancy, path optimization |
 | Graph queries | Linear review | Visualization, best path, branch analysis, statistics |
+| Node references | By ID only | **Aliases: last, best, root** |
+| Response format | Plain text | **Structured MCPResponse with nextSuggested** |
+| Session persistence | None | **Auto-save, save/load/resume** |
+| Error messages | Raw errors | **Human-readable with hints** |
+| Tool discovery | None | **help tool with categories & workflows** |
+| Conclusion | Manual review | **conclude tool with actionItems** |
+| Strategy selection | Manual only | **auto strategy based on content** |
 
 ## Development
 
@@ -523,10 +723,10 @@ npm start
 
 ```bash
 npm run build
-node dist/test.js
+npm test
 ```
 
-130+ tests covering all modules: Node, Graph, **9 Strategies** (including new enhanced strategies), Scorer, Metacog, Knowledge, Pruner, Integration, Edge Cases, **Schema Validation**.
+131 tests covering all modules: Node, Graph, 10 Strategies (including auto), Scorer, Metacog, Knowledge, Pruner, Integration, Edge Cases, Schema Validation.
 
 ## Documentation
 
